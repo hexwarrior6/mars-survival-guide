@@ -1,62 +1,51 @@
-# 🔴 Mars Survival Guide: Martian Map
-> **NASA International Space Apps Challenge 2026**  
-> **Challenge**: *Interplanetary Survival Guide: Martian Map*  
-> **Team**: Liang-Tzu (Singapore Local Event)  
-> **Live Demo**: *[Deployment URL]*
+# Mars Survival Guide: Martian Map
 
----
+A planned Marswalk planning and simulation console for the **NASA International Space Apps Challenge 2026**, addressing [Interplanetary Survival Guide: Martian Map](https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/).
 
-## 🛰️ 1. Project Overview
+**Status: planning only.** This repository contains implementation specifications, not a working application. No live demo is available yet.
 
-When the first astronauts set foot on the surface of Mars, they will face unprecedented environmental extremes: unmapped terrain slopes, catastrophic dust storms, cosmic radiation, and strict physiological life-support limits (oxygen and suit battery).
+## Design preview
 
-Unlike existing global-scale viewers (e.g., NASA Mars Trek), **Mars Survival Guide** is an interactive, tactical **Marswalk Survival HUD & AI Route Planning Console** tailored for astronauts on Extravehicular Activities (EVA) and Ground Mission Control. It aggregates multiple layers of NASA Mars mission data to deliver real-time risk assessment, hazard avoidance, and optimal science waypoint navigation.
+![Stage 5 design concept: Marswalk mission console](docs/visuals/stage-05.png)
 
----
+**AI-generated visual concept:** cinematic terrain, fictional locations, and example values. This is an art-direction target, not a working 3D scene, an animation, or NASA imagery. See the [visual direction](docs/VISUAL-DIRECTION.md) for interaction and implementation boundaries.
 
-## ⚡ 2. Key Features
+[View all five stage previews](docs/README.md) · [Implementation and acceptance criteria](docs/IMPLEMENTATION.md)
 
-- **Interactive 2.5D Jezero Crater Topography**: High-fidelity elevation contours, slope-gradient hazards, and real-time waypoint tracking based on Mars 2020 Perseverance exploration zones.
-- **Multi-Layer NASA Hazard Overlays**:
-  - 🌪️ **Atmospheric & Dust Storm Alerts**: Dynamic simulation of dust activity based on MEDA environmental telemetry.
-  - ☢️ **Surface Radiation Field**: Micro-sievert flux heatmaps derived from MSL RAD surface measurements.
-  - 🏔️ **Slope & Traverse Risk**: Automatic terrain slope safety grading (safe / steep / impassable cliff).
-- **AI Marswalk Route Optimization**:
-  - Real-time cost-weighted pathfinding algorithm balancing distance, terrain roughness, radiation exposure, and oxygen/power consumption.
-  - Emergency Safe Abort Path generation under sudden dust or battery crisis.
-- **Astronaut Life-Support Telemetry HUD**:
-  - Real-time oxygen depletion rate, suit battery reserve, distance-to-home monitoring, and 20% safe-return threshold warning.
-- **Scientific Sampling Catalog**:
-  - Curated high-priority geological sampling sites with authentic NASA Mars imagery, mineral spectral tags (CRISM/PIXL), and scientific objectives.
+## Purpose
 
----
+Help users plan a science excursion in a small area of Jezero Crater, inspect terrain and science destinations, estimate a round trip within a resource budget, and replan a return route when a simulated incident changes the mission.
 
-## 📊 3. NASA Data & Tools Integration
+This is a research and educational prototype. Routes and resource estimates will use documented, simplified assumptions; they are not validated astronaut navigation or life-support guidance.
 
-Mars Survival Guide strictly adheres to NASA Space Apps Challenge data requirements by integrating authentic data from:
-1. **[NASA JPL Mars Trek Data Portal](https://trek.nasa.gov/mars/)**: High-resolution digital elevation models (DEM) and MOLA topography of Jezero Crater.
-2. **[NASA Mars 2020 Perseverance Rover Science Archive](https://mars.nasa.gov/mars2020/multimedia/raw-images/)**: Actual landing site coordinates (Octavia E. Butler Landing), traverse waypoints, and raw geological camera imagery.
-3. **[NASA MSL Radiation Assessment Detector (RAD)](https://pds-atmospheres.nmsu.edu/)**: Ground-level cosmic and solar particle radiation flux benchmarks.
-4. **[NASA MEDA (Mars Environmental Dynamics Analyzer)](https://mars.nasa.gov/msl/spacecraft/instruments/rad/)**: Atmospheric pressure, thermal fluctuations, and dust opacity models.
+## Planned experience
 
----
+1. Explore a local map with terrain, imagery, and evidence-backed science destinations.
+2. Select a simulated base and a science target; inspect outbound and return routes, duration, oxygen, and battery estimates.
+3. Run a repeatable simulation and trigger battery loss or a blocked area.
+4. Review an updated return route, or an explicit explanation that no feasible return was found under the model.
+5. Inspect the sources, processing methods, and assumptions behind the information.
 
-## 🛠️ 4. Tech Stack & Architecture
+The visual priority is an immersive 3D terrain sandbox with cinematic camera transitions, terrain-following routes, and visible incident responses. Additional science waypoints, atmospheric models, and an optional AI explanation assistant remain later enhancements. Advanced features follow the core acceptance gates; they are not implemented today.
 
-- **Frontend Core**: Modern Web Standards / HTML5 Canvas / Tailwind CSS / Lucide Icons
-- **Mapping & Visualization**: 2.5D Vector Surface Engine with interactive multi-layer toggling
-- **Pathfinding Engine**: Weighted A* heuristic solver factoring elevation delta and hazard weights
-- **Deployment**: Zero-dependency static architecture ready for instant Vercel / GitHub Pages hosting
+## Data approach
 
----
+Candidate sources include MRO terrain and orbital imagery, Perseverance surface imagery and science records, and [MEDA observations in NASA PDS](https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/PERSEVERANCE/meda.html). Product selection, download, parsing, and alignment remain to be validated.
 
-## 🚀 5. Quick Start
+Layers will distinguish **observations**, **derived results**, and **simulation assumptions**. Historical rover readings will not be presented as live weather or measurements at every map location. Curiosity RAD data will not be presented as an observed Jezero radiation map. Mineral claims require location-specific supporting records.
 
-No complex environment setup required. Simply clone and run:
+## Implementation plan
 
-```bash
-git clone https://github.com/hexwarrior6/mars-survival-guide.git
-cd mars-survival-guide
+Start with the [documentation index](docs/README.md) (Chinese):
 
-# Open directly or serve with any static HTTP server
-npx serve .
+- [Research and source limitations](docs/RESEARCH.md)
+- [Product and engineering contracts](docs/SPECIFICATION.md)
+- [Phased implementation and acceptance gates](docs/IMPLEMENTATION.md)
+
+The planned stack is TypeScript, React, and Vite, with a WebGL terrain view, HTML/SVG controls, preprocessed static data, and deterministic routing. Rendering-library selection and a 2D fallback will be validated during the visual implementation stage. The core workflow needs no application backend. Package versions and setup commands will be documented when implementation starts; there is no runnable quick start yet.
+
+## Attribution and participation
+
+The original concept names **Liang-Tzu**, Singapore Local Event. Account membership and submission status have not been verified. AI development assistance and dataset attribution must be documented in the eventual submission.
+
+Code is licensed under [MIT](LICENSE). External datasets and imagery retain their own terms and attribution requirements; the repository license does not relicense them.
