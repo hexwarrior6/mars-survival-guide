@@ -312,7 +312,6 @@ function Markers({
           position={[0, 36, 0]}
           center
           portal={overlayRef as never}
-          distanceFactor={1500}
           zIndexRange={[20, 0]}
         >
           <div className="site-label base-label">{lang === "zh" ? "基地（模拟）· 比例人形 1.7 米" : "BASE (simulated) · scale figure 1.7 m"}</div>
