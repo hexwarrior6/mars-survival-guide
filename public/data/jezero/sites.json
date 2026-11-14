@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "note": "Positions are anchored to unmistakable landforms in the real DEM/ortho by manual identification (method in alignment_report.json); positionUncertaintyM expresses that identification limit, not instrument precision. Science objectives come from the cited Mars 2020 mission records. samplingDurationMin is left to Phase 2.",
   "sites": [
     {
@@ -20,7 +20,7 @@
         "hirise-caption-psp-003798-1985"
       ],
       "imageIds": [],
-      "samplingDurationMin": null
+      "samplingDurationMin": 30.0
     },
     {
       "id": "SITE-B",
@@ -39,7 +39,7 @@
         "jpl-2022-09-15-delta-sediments"
       ],
       "imageIds": [],
-      "samplingDurationMin": null
+      "samplingDurationMin": 30.0
     },
     {
       "id": "SITE-C",
@@ -57,7 +57,7 @@
         "nasa-m2020-landing-site"
       ],
       "imageIds": [],
-      "samplingDurationMin": null
+      "samplingDurationMin": 30.0
     }
   ]
 }

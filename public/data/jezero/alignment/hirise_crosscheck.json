@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "purpose": "independent cross-validation of the CTX DEM mosaic against the HiRISE 1 m DTM",
   "dtmProductId": "DTEEC_045994_1985_046060_1985_U01",
   "points": [

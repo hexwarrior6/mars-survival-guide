@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "id": "jezero-west-delta-01",
   "base": {
     "id": "BASE",
@@ -72,9 +72,25 @@
       "note": "Closure covering the central delta-front crossing used by the normal base->SITE-B route; a detour exists (verified below)."
     }
   ],
+  "initialResources": {
+    "oxygen": 100.0,
+    "battery": 100.0
+  },
+  "reserveFractions": {
+    "oxygen": 0.2,
+    "battery": 0.2
+  },
   "movementParameters": {
     "passabilitySlopeThresholdDeg": 20.0,
-    "provenance": "simulated assumption for the Phase 1 connectivity check; Phase 2 must re-state it with justification before route costing uses it"
+    "baseSpeedMPM": 40.0,
+    "slopeTimeFactorPerDeg": 0.05,
+    "ascentPenaltyMinPerM": 0.3,
+    "provenance": "simulated planning assumptions (see sources.json assumptions); not validated astronaut or life-support data"
+  },
+  "resourceRates": {
+    "oxygenPerMin": 0.20833333333333334,
+    "batteryPerMin": 0.20833333333333334,
+    "provenance": "simulated budget units per minute of EVA time (0-100 scale); never presented as liters or watt-hours"
   },
   "connectivityChecks": {
     "normalBaseToSiteM": {
@@ -93,6 +109,12 @@
   "assumptionIds": [
     "sim-passability-threshold",
     "sim-base",
-    "sim-events"
+    "sim-events",
+    "sim-reserve-20pct",
+    "sim-stop-duration",
+    "sim-speed-base",
+    "sim-speed-slope",
+    "sim-climb-penalty",
+    "sim-resource-rates"
   ]
 }

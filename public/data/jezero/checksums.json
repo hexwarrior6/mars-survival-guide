@@ -1,10 +1,10 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "algorithm": "sha256",
   "files": {
     "README.md": {
-      "bytes": 3164,
-      "sha256": "3ad2dd0d081859130f718b136027288b1067961bbf8a41d3caa0d8e715264cd4"
+      "bytes": 3370,
+      "sha256": "8e23c3ddc084be6802eb0ed953f85566b1601b01fb02716378775f73d4179407"
     },
     "alignment/alignment_check.png": {
       "bytes": 318174,
@@ -12,11 +12,11 @@
     },
     "alignment/alignment_report.json": {
       "bytes": 3710,
-      "sha256": "26d86b3488ad0f2e28d24d133453091e5faaf38b014214fce437cfc0725579d3"
+      "sha256": "23e889200a1c419a26213cce72ee0f8eb97e42fb6812307dd0f958f1a37b3df5"
     },
     "alignment/hirise_crosscheck.json": {
       "bytes": 3339,
-      "sha256": "48611abee9f517f012902cbded73d10c0685dff088554172b39f02671a259bfa"
+      "sha256": "1e78075975ed5940dfb25f801ca4fd2eb8db5869364fad2953d4b2d1fad73732"
     },
     "imagery/ortho_20m.jpg": {
       "bytes": 18607,
@@ -28,19 +28,19 @@
     },
     "region.json": {
       "bytes": 1601,
-      "sha256": "9e1b6d96dbe3427d35d24b9b701ce83d236f0b6587c71b51606813c25eaafa0b"
+      "sha256": "1e3d54426efa130e6edeb72e699524daf8301bda34c9850a76133a35e0b2d26f"
     },
     "scenario.json": {
-      "bytes": 2267,
-      "sha256": "c6535b00dc1501f1de26996a1c77111cfde184e9dca9161e65018997fe46d760"
+      "bytes": 2853,
+      "sha256": "bfead8c176fc1ad801f128f24ca6922de3e764514eddb6f6c46c5b52dc7e3caa"
     },
     "sites.json": {
       "bytes": 2487,
-      "sha256": "5f53104766293055eab560168febfd135b7d449d58350db40feb020b018aa7a8"
+      "sha256": "637af40d712947ff505a7647c4cc43706d973486eb3296d59e76f3c31568baf8"
     },
     "sources.json": {
-      "bytes": 5998,
-      "sha256": "ce0495eaec1895271eee0c98f61332cd0a6d4eab85cb3c50a24b92c6037afc0a"
+      "bytes": 7684,
+      "sha256": "00ac214b8f824940cebdd0c495bc4e7543f3a7f161622c722e19c4cc3de0e334"
     },
     "terrain/elevations.f32": {
       "bytes": 262144,
@@ -52,7 +52,7 @@
     },
     "terrain/terrain.json": {
       "bytes": 1145,
-      "sha256": "924f3d3704d28a36699754c6b96d2e0e98acd1fe4f7d53eab25f92d2c4aa39c4"
+      "sha256": "459b1944b95f181cbc6a5f85b3f55b0dacedb8e64b9247a9124f2fd892f0e51b"
     },
     "terrain/valid_mask.u8": {
       "bytes": 65536,

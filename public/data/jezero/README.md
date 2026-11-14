@@ -50,7 +50,9 @@ script itself.
   measurements.
 - Science-site pins are landform-anchored with stated uncertainty (see
   `sites.json`); they are not rover sample-location pins.
-- Base, events and the 20 deg passability threshold are simulated scenario inputs,
-  clearly separated from observations.
-- Resource numbers (oxygen/power, speeds, dwell times) do not exist yet; they are
-  Phase 2 scope.
+- Base, events, the 20 deg passability threshold and all EVA budget numbers
+  (initial resources, 20% reserves, 30 min stops, speeds, consumption rates) are
+  simulated scenario inputs, clearly separated from observations (see
+  `sources.json` -> assumptions). Resource units are abstract 0-100 budget points,
+  never liters or watt-hours.
+- v1.1 (phase 2): added EVA budget parameters; terrain arrays are unchanged from v1.0.

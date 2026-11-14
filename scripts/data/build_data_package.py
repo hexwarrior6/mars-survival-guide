@@ -66,7 +66,23 @@ REGION = {
     "cellSizeM": 20.0,
 }
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"  # v1.1 (phase 2): added EVA budget parameters (initialResources,
+# reserveFractions, samplingDurationMin, movement parameters, resource rates)
+
+# ---------------------------------------------------------------------------
+# Phase 2 simulated EVA budget parameters.
+# All values are DEMONSTRATION ASSUMPTIONS for the planning model, not validated
+# astronaut or life-support data. Oxygen and battery use independent 0-100
+# simulated budget units (never liters or Wh).
+# ---------------------------------------------------------------------------
+INITIAL_RESOURCES = {"oxygen": 100.0, "battery": 100.0}
+RESERVE_FRACTIONS = {"oxygen": 0.20, "battery": 0.20}
+SAMPLING_DURATION_MIN = {"SITE-A": 30.0, "SITE-B": 30.0, "SITE-C": 30.0}
+BASE_SPEED_MPM = 40.0            # flat-ground suited walking speed, m/min (2.4 km/h)
+SLOPE_TIME_FACTOR_PER_DEG = 0.05 # edge time multiplier 1 + slopeDeg*0.05 (20 deg -> 2.0x)
+ASCENT_PENALTY_MIN_PER_M = 0.3   # extra minutes per meter of net elevation gain
+OXYGEN_RATE_PER_MIN = 100.0 / 480.0  # 100 units over a nominal 480 min EVA
+BATTERY_RATE_PER_MIN = 100.0 / 480.0
 
 # Mars 2020 CTX mosaic projection (from the PDS4 label M20_JezeroCrater_CTXDEM_20m.xml)
 MARS_RADIUS_M = 3396190.0
@@ -829,7 +845,7 @@ def main() -> None:
                 "sourceIds": ["nasa-m2020-landing-site", "jpl-2022-09-15-delta-sediments",
                                "hirise-caption-psp-003798-1985"],
                 "imageIds": [],
-                "samplingDurationMin": None,
+                "samplingDurationMin": SAMPLING_DURATION_MIN["SITE-A"],
             },
             {
                 "id": "SITE-B",
@@ -844,7 +860,7 @@ def main() -> None:
                                      "delta top in the CTX ortho extract and DEM hillshade",
                 "sourceIds": ["nasa-m2020-landing-site", "jpl-2022-09-15-delta-sediments"],
                 "imageIds": [],
-                "samplingDurationMin": None,
+                "samplingDurationMin": SAMPLING_DURATION_MIN["SITE-B"],
             },
             {
                 "id": "SITE-C",
@@ -859,7 +875,7 @@ def main() -> None:
                                      "ortho extract and the DEM hillshade (also control point CP1)",
                 "sourceIds": ["nasa-m2020-landing-site"],
                 "imageIds": [],
-                "samplingDurationMin": None,
+                "samplingDurationMin": SAMPLING_DURATION_MIN["SITE-C"],
             },
         ],
     }
@@ -898,10 +914,21 @@ def main() -> None:
                         "base->SITE-B route; a detour exists (verified below).",
             },
         ],
+        "initialResources": dict(INITIAL_RESOURCES),
+        "reserveFractions": dict(RESERVE_FRACTIONS),
         "movementParameters": {
             "passabilitySlopeThresholdDeg": SLOPE_THRESHOLD_DEG,
-            "provenance": "simulated assumption for the Phase 1 connectivity check; Phase 2 must "
-                          "re-state it with justification before route costing uses it",
+            "baseSpeedMPM": BASE_SPEED_MPM,
+            "slopeTimeFactorPerDeg": SLOPE_TIME_FACTOR_PER_DEG,
+            "ascentPenaltyMinPerM": ASCENT_PENALTY_MIN_PER_M,
+            "provenance": "simulated planning assumptions (see sources.json assumptions); "
+                          "not validated astronaut or life-support data",
+        },
+        "resourceRates": {
+            "oxygenPerMin": OXYGEN_RATE_PER_MIN,
+            "batteryPerMin": BATTERY_RATE_PER_MIN,
+            "provenance": "simulated budget units per minute of EVA time (0-100 scale); "
+                          "never presented as liters or watt-hours",
         },
         "connectivityChecks": {
             "normalBaseToSiteM": normal,
@@ -911,7 +938,9 @@ def main() -> None:
                         "site still reachable" if all(blocked.values()) else
                         "blocked case leaves a site unreachable - adjust before freezing"),
         },
-        "assumptionIds": ["sim-passability-threshold", "sim-base", "sim-events"],
+        "assumptionIds": ["sim-passability-threshold", "sim-base", "sim-events",
+                          "sim-reserve-20pct", "sim-stop-duration", "sim-speed-base",
+                          "sim-speed-slope", "sim-climb-penalty", "sim-resource-rates"],
     }
     json_write(OUT / "scenario.json", scenario_json)
 
@@ -1020,6 +1049,28 @@ def main() -> None:
                 "limitations": "observation-center coordinates, not a feature pin",
             },
         ],
+        "assumptions": {
+            "note": "Every number below is a simulated planning assumption for the demo "
+                    "scenario. None is validated astronaut or life-support guidance.",
+            "entries": [
+                {"id": "sim-passability-threshold", "value": f"slope <= {SLOPE_THRESHOLD_DEG} deg passable",
+                 "range": "10-30 deg sensible for a 20 m planning grid",
+                 "why": "phase 1 connectivity-check parameter, kept as the routing threshold"},
+                {"id": "sim-reserve-20pct", "value": "reserve = 20% of initial capacity per resource",
+                 "range": "configurable 0-0.5; 20% is a demo value, not a NASA safety standard"},
+                {"id": "sim-stop-duration", "value": "30 min science stop per site",
+                 "range": "10-120 min; uniform placeholder pending science input"},
+                {"id": "sim-speed-base", "value": f"{BASE_SPEED_MPM} m/min ({BASE_SPEED_MPM*0.06:.1f} km/h) flat suited walking",
+                 "range": "20-80 m/min; representative of suited EVA paces in mission reports, not measured here"},
+                {"id": "sim-speed-slope", "value": f"edge time x(1 + slopeDeg*{SLOPE_TIME_FACTOR_PER_DEG})",
+                 "range": "factor 0-0.1/deg; slows travel on grades"},
+                {"id": "sim-climb-penalty", "value": f"+{ASCENT_PENALTY_MIN_PER_M} min per meter of net ascent",
+                 "range": "0-1 min/m; descent has no extra penalty in v1"},
+                {"id": "sim-resource-rates", "value": f"oxygen {OXYGEN_RATE_PER_MIN:.4f}/min, battery {BATTERY_RATE_PER_MIN:.4f}/min "
+                  "(100 units / 480 min nominal EVA)",
+                 "range": "rates must keep a full EVA inside 0-100 units"},
+            ],
+        },
         "classification": {
             "observed": ["m20-ctx-dem-mosaic", "m20-ctx-ortho-mosaic", "hirise-dteec-045994-1985-046060-1985",
                           "nasa-m2020-landing-site", "jpl-2022-09-15-delta-sediments",
@@ -1027,7 +1078,8 @@ def main() -> None:
             "derived": ["terrain grids (elevations/valid/slope)", "ortho extracts",
                          "alignment measurements", "science-site landform anchors"],
             "simulated": ["BASE (Jezero Base)", "EVENT-1 battery loss", "EVENT-2 area closure",
-                           "passability slope threshold 20 deg"],
+                           "passability slope threshold 20 deg", "EVA budget parameters (initial resources, "
+                           "reserve fractions, stop durations, speeds, rates)"],
         },
     }
     json_write(OUT / "sources.json", sources_json)
@@ -1137,10 +1189,12 @@ script itself.
   measurements.
 - Science-site pins are landform-anchored with stated uncertainty (see
   `sites.json`); they are not rover sample-location pins.
-- Base, events and the 20 deg passability threshold are simulated scenario inputs,
-  clearly separated from observations.
-- Resource numbers (oxygen/power, speeds, dwell times) do not exist yet; they are
-  Phase 2 scope.
+- Base, events, the 20 deg passability threshold and all EVA budget numbers
+  (initial resources, 20% reserves, 30 min stops, speeds, consumption rates) are
+  simulated scenario inputs, clearly separated from observations (see
+  `sources.json` -> assumptions). Resource units are abstract 0-100 budget points,
+  never liters or watt-hours.
+- v1.1 (phase 2): added EVA budget parameters; terrain arrays are unchanged from v1.0.
 """
     (OUT / "README.md").write_text(readme, encoding="utf-8")
 

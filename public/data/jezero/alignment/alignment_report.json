@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "globalRegistration": {
     "method": "joint translation scan of mean NCC between high-pass ortho texture and high-pass DEM hillshade over textured patches, parabolic sub-cell refinement",
     "patchCells": 10,

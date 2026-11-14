@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "rawInputFiles": {
     "M20_JezeroCrater_CTXDEM_20m.tif": {
       "bytes": 90345300,
@@ -106,6 +106,47 @@
       "limitations": "observation-center coordinates, not a feature pin"
     }
   ],
+  "assumptions": {
+    "note": "Every number below is a simulated planning assumption for the demo scenario. None is validated astronaut or life-support guidance.",
+    "entries": [
+      {
+        "id": "sim-passability-threshold",
+        "value": "slope <= 20.0 deg passable",
+        "range": "10-30 deg sensible for a 20 m planning grid",
+        "why": "phase 1 connectivity-check parameter, kept as the routing threshold"
+      },
+      {
+        "id": "sim-reserve-20pct",
+        "value": "reserve = 20% of initial capacity per resource",
+        "range": "configurable 0-0.5; 20% is a demo value, not a NASA safety standard"
+      },
+      {
+        "id": "sim-stop-duration",
+        "value": "30 min science stop per site",
+        "range": "10-120 min; uniform placeholder pending science input"
+      },
+      {
+        "id": "sim-speed-base",
+        "value": "40.0 m/min (2.4 km/h) flat suited walking",
+        "range": "20-80 m/min; representative of suited EVA paces in mission reports, not measured here"
+      },
+      {
+        "id": "sim-speed-slope",
+        "value": "edge time x(1 + slopeDeg*0.05)",
+        "range": "factor 0-0.1/deg; slows travel on grades"
+      },
+      {
+        "id": "sim-climb-penalty",
+        "value": "+0.3 min per meter of net ascent",
+        "range": "0-1 min/m; descent has no extra penalty in v1"
+      },
+      {
+        "id": "sim-resource-rates",
+        "value": "oxygen 0.2083/min, battery 0.2083/min (100 units / 480 min nominal EVA)",
+        "range": "rates must keep a full EVA inside 0-100 units"
+      }
+    ]
+  },
   "classification": {
     "observed": [
       "m20-ctx-dem-mosaic",
@@ -125,7 +166,8 @@
       "BASE (Jezero Base)",
       "EVENT-1 battery loss",
       "EVENT-2 area closure",
-      "passability slope threshold 20 deg"
+      "passability slope threshold 20 deg",
+      "EVA budget parameters (initial resources, reserve fractions, stop durations, speeds, rates)"
     ]
   }
 }
