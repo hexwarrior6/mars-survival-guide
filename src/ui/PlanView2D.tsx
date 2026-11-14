@@ -6,6 +6,7 @@ import type { JSX } from "react";
 import type { LoadedPackage } from "../domain/load.js";
 import type { RouteResult, Strategy } from "../domain/types.js";
 import type { MissionRuntime } from "../simulation/runtime.js";
+import type { CostField } from "../routing/field.js";
 import { worldTransform } from "../domain/world.js";
 import { useLang } from "./i18n.js";
 
@@ -19,6 +20,8 @@ export function PlanView2D({
   runtimeRef,
   redrawKey,
   astronaut,
+  returnable,
+  lockedCells,
 }: {
   pkg: LoadedPackage;
   result: RouteResult | null;
@@ -27,6 +30,8 @@ export function PlanView2D({
   runtimeRef: React.MutableRefObject<MissionRuntime | null>;
   redrawKey: number;
   astronaut: { xM: number; yM: number } | null;
+  returnable: { field: CostField; threshold: number } | null;
+  lockedCells: { out: Array<[number, number]>; ret: Array<[number, number]> } | null;
 }): JSX.Element {
   const { lang } = useLang();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -71,6 +76,11 @@ export function PlanView2D({
       const candidate = result?.candidates.find((c) => c.strategy === strategy);
       const rt = runtimeRef.current;
       const emergencyActive = !!(rt !== null && rt.emergency !== null && rt.emergency.plan !== null);
+      // locked plan A: subdued dashed pair under the current plan
+      if (lockedCells !== null) {
+        drawPath(lockedCells.out, "#8f89a8", 2.5, [7, 5]);
+        drawPath(lockedCells.ret, "#7f7890", 2, [5, 5]);
+      }
       if (candidate) {
         const invalid = emergencyActive;
         drawPath(candidate.outbound.pathCells, invalid ? "#8a8078" : "#fff3dd", 3, invalid ? [6, 5] : []);
@@ -118,6 +128,41 @@ export function PlanView2D({
         ctx.strokeStyle = "#ffb45e";
         ctx.lineWidth = 2;
         ctx.stroke();
+      }
+
+      // returnable-range boundary (V3): real computed field, amber segments
+      if (returnable !== null && Number.isFinite(returnable.threshold)) {
+        const { field, threshold } = returnable;
+        const cs = pkg.terrain.cellSizeM;
+        const w = pkg.terrain.width;
+        const h = pkg.terrain.height;
+        ctx.beginPath();
+        for (let r = 0; r < h; r++) {
+          for (let c = 0; c < w; c++) {
+            const i = r * w + c;
+            if ((field.minutes[i] as number) > threshold) continue;
+            for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+              const r2 = r + dr;
+              const c2 = c + dc;
+              let out = true;
+              if (r2 >= 0 && r2 < h && c2 >= 0 && c2 < w) {
+                out = (field.minutes[r2 * w + c2] as number) > threshold;
+              }
+              if (!out) continue;
+              const [x1, y1] = toPx((c + 0.5) * cs, pkg.terrain.originYM - (r + 0.5) * cs);
+              const [x2, y2] = r2 >= 0 && r2 < h && c2 >= 0 && c2 < w
+                ? toPx((c2 + 0.5) * cs, pkg.terrain.originYM - (r2 + 0.5) * cs)
+                : [x1 + dc * (cs / pkg.region.boundsLocalM.widthM) * SIZE, y1 - dr * (cs / pkg.region.boundsLocalM.heightM) * SIZE];
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+            }
+          }
+        }
+        ctx.strokeStyle = "#ffb45e";
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.85;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
       }
 
       // sites and base
@@ -171,7 +216,7 @@ export function PlanView2D({
     // redraw when image cached
     const t = setTimeout(draw, 60);
     return () => clearTimeout(t);
-  }, [pkg, result, strategy, selectedSiteId, redrawKey, runtimeRef, lang]);
+  }, [pkg, result, strategy, selectedSiteId, redrawKey, runtimeRef, lang, returnable, lockedCells]);
 
   return (
     <canvas

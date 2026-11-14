@@ -17,7 +17,9 @@ import {
   normalizeSchedule,
 } from "../src/simulation/engine.js";
 import type { EmergencyPlan, MissionTimeline, ScheduledEvent } from "../src/simulation/engine.js";
-import type { RouteRequest } from "../src/domain/types.js";
+import { applyScrub, createHudMirror, makeRuntime, stepMissionRuntime } from "../src/simulation/runtime.js";
+import { worldTransform } from "../src/domain/world.js";
+import type { RouteRequest, RouteResult } from "../src/domain/types.js";
 
 const PKG_DIR = resolve(process.cwd(), "public/data/jezero");
 const pkg = loadPackageFromDirectory(PKG_DIR);
@@ -34,6 +36,7 @@ const RATES = { oxygenPerMin: 100 / 480, batteryPerMin: 100 / 480 };
 function setup(siteId: string, initial = 100): {
   timeline: MissionTimeline;
   request: RouteRequest;
+  result: RouteResult;
 } {
   const request: RouteRequest = {
     requestId: `sim-${siteId}`,
@@ -55,7 +58,7 @@ function setup(siteId: string, initial = 100): {
     THRESHOLD,
     { initialResources: { oxygen: initial, battery: initial }, reserveFractions: { ...pkg.scenario.reserveFractions } },
   );
-  return { timeline, request };
+  return { timeline, request, result };
 }
 
 function closureMask(timeline: MissionTimeline): Uint8Array {
@@ -294,5 +297,86 @@ describe("E4: estimate equals actual consumption; distinct failure tiers", () =>
     const final = missionStateAt(tl, sched, { t0: 130, plan: planNarrow }, 130 + planNarrow.totalMinutes);
     const expectedRemaining = 100 - (130 + planNarrow.totalMinutes) * RATES.oxygenPerMin;
     expect(final.resources.oxygen).toBeCloseTo(expectedRemaining, 6);
+  });
+});
+
+describe("V2 scrub/replay semantics (SPECIFICATION §5)", () => {
+  const t = worldTransform(pkg.terrain);
+
+  it("scrubbing to T reproduces the continuously played state exactly", () => {
+    const { timeline, result } = setup("SITE-A");
+    const rt1 = makeRuntime("SITE-A", result, timeline, null, null);
+    rt1.running = true;
+    rt1.speed = 1;
+    const hud1 = createHudMirror().current;
+    let guard = 0;
+    while (rt1.T < 60 && guard < 800) {
+      stepMissionRuntime(rt1, hud1, t, 0.1);
+      guard++;
+    }
+    // fresh runtime, same schedule, direct jump to the SAME T value
+    const rt2 = makeRuntime("SITE-A", result, timeline, null, null);
+    const hud2 = createHudMirror().current;
+    const st2 = applyScrub(rt2, hud2, t, rt1.T);
+    const st1 = missionStateAt(timeline, rt1.schedule, rt1.emergency ? { t0: rt1.emergency.t0, plan: rt1.emergency.plan } : null, rt1.T);
+    expect(JSON.stringify(st2)).toBe(JSON.stringify(st1));
+    // scrubbing pauses playback (E1)
+    expect(rt2.paused).toBe(true);
+    // scrubbing twice to the same T is idempotent (resources derive from T,
+    // never accumulate — a battery loss can never be applied twice)
+    const first = JSON.stringify(applyScrub(rt2, hud2, t, rt2.T));
+    const second = JSON.stringify(applyScrub(rt2, hud2, t, rt2.T));
+    expect(second).toBe(first);
+    // paused playback does not advance time
+    const before = rt2.T;
+    stepMissionRuntime(rt2, hud2, t, 0.5);
+    expect(rt2.T).toBe(before);
+  });
+
+  it("crossing a closure forward and back restores the nominal state, then replays identically", () => {
+    const { timeline, result } = setup("SITE-B");
+    const rt = makeRuntime("SITE-B", result, timeline, closureMask(timeline), 130);
+    const hud = createHudMirror().current;
+    // forward past the closure: emergency replanned from the interpolated spot
+    applyScrub(rt, hud, t, 140);
+    expect(rt.emergency).not.toBeNull();
+    expect(hud.phase).toBe("returning");
+    const eventsAt140 = hud.eventsApplied.length;
+    expect(eventsAt140).toBeGreaterThanOrEqual(1);
+    const oxyAt140 = hud.oxygen;
+    // drag back before the event: pure nominal state (no applied events)
+    applyScrub(rt, hud, t, 100);
+    expect(rt.emergency).toBeNull();
+    expect(hud.eventsApplied).toHaveLength(0);
+    expect(hud.phase).toBe("running");
+    const oxyAt100 = hud.oxygen;
+    expect(oxyAt100).toBeCloseTo(100 - 100 * RATES.oxygenPerMin, 6);
+    // forward again: the event replays identically (no double application)
+    applyScrub(rt, hud, t, 140);
+    expect(hud.oxygen).toBeCloseTo(oxyAt140, 9);
+    expect(hud.eventsApplied.length).toBe(eventsAt140);
+    expect(hud.phase).toBe("returning");
+  });
+
+  it("battery-loss scrub shows the stranded terminal state, dragging back un-freezes it", () => {
+    const { timeline, result } = setup("SITE-B");
+    const rt = makeRuntime("SITE-B", result, timeline, null, null);
+    rt.schedule.batteryLosses = [
+      { id: "battery-test", type: "battery_loss", atSimMinutes: 100, amountUnits: 70 },
+    ];
+    const hud = createHudMirror().current;
+    applyScrub(rt, hud, t, 150);
+    expect(hud.phase).toBe("no_feasible_return");
+    // back before the loss: nominal running, full-ish resources again
+    applyScrub(rt, hud, t, 80);
+    expect(hud.phase).toBe("running");
+    expect(hud.oxygen).toBeCloseTo(100 - 80 * RATES.oxygenPerMin, 6);
+    expect(hud.eventsApplied).toHaveLength(0);
+    // forward again: stranded again — the state FREEZES at the event time t0
+    // (nominalState(t0) with losses applied; playback stops, resources do NOT
+    // keep draining past the failure — existing engine semantics)
+    applyScrub(rt, hud, t, 150);
+    expect(hud.phase).toBe("no_feasible_return");
+    expect(hud.oxygen).toBeCloseTo(100 - 100 * RATES.oxygenPerMin - 70, 6);
   });
 });

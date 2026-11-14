@@ -4,7 +4,7 @@
  * transitions. Display layer only — geometry comes from the frozen package
  * through src/domain/world.ts. */
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { advance, Canvas, useFrame, useThree } from "@react-three/fiber";
 
@@ -64,9 +64,12 @@ import {
   sitePose,
   worldTransform,
   worldXZ,
+  worldY,
+  sampleElevationM,
   type CameraPose,
   type WorldTransform,
- worldY, sampleElevationM } from "../domain/world.js";
+} from "../domain/world.js";
+import type { CostField } from "../routing/field.js";
 import { commandCamera, readCameraCommand } from "./cameraBus.js";
 import { MissionLayer } from "./MissionLayer.js";
 import type { Lang } from "./i18n.js";
@@ -130,6 +133,7 @@ function RouteLines({
   strategy,
   reducedMotion,
   runtimeRef,
+  locked,
 }: {
   terrain: TerrainGrid;
   t: WorldTransform;
@@ -137,6 +141,8 @@ function RouteLines({
   strategy: Strategy;
   reducedMotion: boolean;
   runtimeRef: React.MutableRefObject<MissionRuntime | null>;
+  /** plan-A route (locked inputs), rendered as a subdued dashed pair */
+  locked: { out: THREE.Vector3[]; ret: THREE.Vector3[] } | null;
 }): JSX.Element | null {
   const rt = runtimeRef.current;
   const emergencyActive = !!(rt !== null && rt.emergency !== null && rt.emergency.plan !== null);
@@ -229,6 +235,14 @@ function RouteLines({
       />
       {emergencyActive && emergencyPoints !== null && (
         <Line points={emergencyPoints} color="#ffb45e" lineWidth={3} />
+      )}
+      {/* plan A (locked inputs): subdued dashed pair so A/B differences read
+          directly on the terrain; only rendered when a plan is locked */}
+      {locked !== null && (
+        <>
+          <Line points={locked.out} color="#b9b3c9" lineWidth={2.5} dashed dashSize={40} gapSize={26} transparent opacity={0.9} />
+          <Line points={locked.ret} color="#b5a894" lineWidth={2} dashed dashSize={30} gapSize={22} transparent opacity={0.9} />
+        </>
       )}
       <mesh ref={headRef} visible={false}>
         <sphereGeometry args={[12, 16, 12]} />
@@ -501,6 +515,112 @@ export function makeFpsStore(): FpsStore {
   return { current: { fps: 0, calls: 0, frames: 0 } };
 }
 
+/**
+ * Returnable-range overlay (V3): the boundary of the set of cells from which
+ * the astronaut could still walk back to base with the CURRENT remaining
+ * resources (reverse-Dijkstra cost field + resource threshold), plus a faint
+ * fill over those cells. Both are real computed geometry — the field is
+ * recomputed only when the closure state changes, and the boundary/fill are
+ * re-derived whenever the resource threshold moves.
+ */
+function ReturnableLayer({
+  field,
+  threshold,
+  terrain,
+  t,
+}: {
+  field: CostField;
+  threshold: number;
+  terrain: TerrainGrid;
+  t: WorldTransform;
+}): JSX.Element | null {
+  const n = terrain.width * terrain.height;
+  const cs = terrain.cellSizeM;
+  // per-cell world height (centre sample), computed once per mapping
+  const heights = useMemo(() => {
+    const h = new Float32Array(n);
+    for (let r = 0; r < terrain.height; r++) {
+      for (let c = 0; c < terrain.width; c++) {
+        const xM = (c + 0.5) * cs;
+        const yM = terrain.originYM - (r + 0.5) * cs;
+        h[r * terrain.width + c] = worldY(t, sampleElevationM(terrain, xM, yM, t.datumM));
+      }
+    }
+    return h;
+  }, [terrain, t, n, cs]);
+
+  const lineRef = useRef<THREE.LineSegments | null>(null);
+  const fillRef = useRef<THREE.InstancedMesh | null>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  // useLayoutEffect: fix the instance count before first paint (an InstancedMesh
+  // starts with count = capacity, which would paint all 65k identity quads once)
+  useLayoutEffect(() => {
+    // boundary segments: every in-range cell with an out-of-range (or blocked)
+    // orthogonal neighbour contributes one centre-to-centre segment
+    const segs: number[] = [];
+    let count = 0;
+    for (let r = 0; r < terrain.height; r++) {
+      for (let c = 0; c < terrain.width; c++) {
+        const i = r * terrain.width + c;
+        const m = field.minutes[i] as number;
+        if (m > threshold) continue;
+        count++;
+        const hHere = heights[i] as number + 0.8;
+        const [xHere, zHere] = worldXZ(t, (c + 0.5) * cs, terrain.originYM - (r + 0.5) * cs);
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+          const r2 = r + dr;
+          const c2 = c + dc;
+          let out = true;
+          if (r2 >= 0 && r2 < terrain.height && c2 >= 0 && c2 < terrain.width) {
+            out = (field.minutes[r2 * terrain.width + c2] as number) > threshold;
+          }
+          if (!out) continue;
+          const i2 = r2 * terrain.width + c2;
+          const hThere = r2 >= 0 && r2 < terrain.height && c2 >= 0 && c2 < terrain.width
+            ? (heights[i2] as number) + 0.8
+            : hHere;
+          const [xThere, zThere] = r2 >= 0 && r2 < terrain.height && c2 >= 0 && c2 < terrain.width
+            ? worldXZ(t, (c2 + 0.5) * cs, terrain.originYM - (r2 + 0.5) * cs)
+            : [xHere + dc * cs, zHere + dr * cs];
+          segs.push(xHere, hHere, zHere, xThere, hThere, zThere);
+        }
+        // fill quad transform for this in-range cell
+        if (fillRef.current !== null && count <= n) {
+          dummy.position.set(xHere, hHere, zHere);
+          dummy.rotation.set(-Math.PI / 2, 0, 0);
+          dummy.updateMatrix();
+          fillRef.current.setMatrixAt(count - 1, dummy.matrix);
+        }
+      }
+    }
+    if (fillRef.current !== null) {
+      fillRef.current.count = count;
+      fillRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (lineRef.current !== null) {
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(segs), 3));
+      const old = lineRef.current.geometry;
+      lineRef.current.geometry = geom;
+      old.dispose();
+    }
+  }, [field, threshold, heights, terrain, t, n, cs, dummy]);
+
+  if (threshold === Number.POSITIVE_INFINITY) return null;
+  return (
+    <group name="returnable-layer">
+      <instancedMesh ref={fillRef} args={[undefined, undefined, n]} frustumCulled={false}>
+        <planeGeometry args={[cs, cs]} />
+        <meshBasicMaterial color="#ffb45e" transparent opacity={0.13} depthWrite={false} side={THREE.DoubleSide} />
+      </instancedMesh>
+      <lineSegments ref={lineRef} frustumCulled={false}>
+        <lineBasicMaterial color="#ffb45e" transparent opacity={0.85} />
+      </lineSegments>
+    </group>
+  );
+}
+
 export type LoopMode = "raf" | "timer";
 
 export function Sandbox({
@@ -515,6 +635,8 @@ export function Sandbox({
   runtimeRef,
   hudRef,
   lang,
+  returnable,
+  lockedRoute,
 }: {
   pkg: LoadedPackage;
   result: RouteResult | null;
@@ -527,6 +649,10 @@ export function Sandbox({
   runtimeRef: React.MutableRefObject<MissionRuntime | null>;
   hudRef: React.MutableRefObject<HudMirror>;
   lang: Lang;
+  /** computed returnable-range field + current resource threshold in minutes */
+  returnable: { field: CostField; threshold: number } | null;
+  /** plan-A (locked) route polylines for the A/B comparison */
+  lockedRoute: { out: { x: number; y: number; z: number }[]; ret: { x: number; y: number; z: number }[] } | null;
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
@@ -563,6 +689,10 @@ export function Sandbox({
         strategy={strategy}
         reducedMotion={reducedMotion}
         runtimeRef={runtimeRef}
+        locked={lockedRoute === null ? null : {
+          out: lockedRoute.out.map((p) => new THREE.Vector3(p.x, p.y, p.z)),
+          ret: lockedRoute.ret.map((p) => new THREE.Vector3(p.x, p.y, p.z)),
+        }}
       />
       {/* mission layer: astronaut walk + closure rectangle + position marker.
           Was never mounted before (phase-4 gap surfaced by user review). */}
@@ -573,6 +703,14 @@ export function Sandbox({
         t={t}
         closureActive={closureActive}
       />
+      {returnable !== null && (
+        <ReturnableLayer
+          field={returnable.field}
+          threshold={returnable.threshold}
+          terrain={pkg.terrain}
+          t={t}
+        />
+      )}
       <OrbitControls
         ref={controlsRef}
         makeDefault

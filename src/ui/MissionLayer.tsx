@@ -8,64 +8,11 @@ import type { JSX } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
-import {
-  firstReturnForcingEvent,
-  missionStateAt,
-  planEmergencyReturn,
-} from "../simulation/engine.js";
+import { stepMissionRuntime } from "../simulation/runtime.js";
 import { cellWorldPosition, worldY, sampleElevationM, worldTransform, type WorldTransform } from "../domain/world.js";
 import type { MissionRuntime } from "../simulation/runtime.js";
 import type { HudMirror } from "../simulation/runtime.js";
 import type { LoadedPackage } from "../domain/load.js";
-
-/** Advance the runtime clock by delta minutes of real time (shared by the 3D
- * frame loop and the 2D-view interval driver). */
-export function stepMissionRuntime(
-  rt: MissionRuntime,
-  hud: HudMirror,
-  t: WorldTransform,
-  delta: number,
-): void {
-  // the clock advances only while running and unpaused (E1: pause/reset freeze
-  // time and resources); the state derivation below always runs so paused and
-  // reset states stay reflected in the HUD
-  if (rt.running && !rt.paused) {
-    rt.T += Math.min(delta, 0.12) * rt.speed;
-    // compute the emergency plan once per forcing event (a short synchronous
-    // hitch on trigger, then the per-frame walk is O(path))
-    const forcing = firstReturnForcingEvent(rt.timeline, rt.schedule, rt.T);
-    if (forcing && (rt.emergency === null || rt.emergency.forId !== forcing.event.id)) {
-      const losses = rt.schedule.batteryLosses
-        .filter((e) => e.atSimMinutes <= forcing.t0)
-        .reduce((acc, e) => acc + (e.amountUnits ?? 0), 0);
-      const posAtT0 = missionStateAt(rt.timeline, rt.schedule, null, forcing.t0).position!;
-      const mask = forcing.event.type === "area_closure" ? rt.closureMask : null;
-      const plan = planEmergencyReturn(rt.timeline, posAtT0, losses, forcing.t0, mask);
-      rt.emergency = { t0: forcing.t0, plan, forId: forcing.event.id };
-    }
-  }
-  const st = missionStateAt(
-    rt.timeline,
-    rt.schedule,
-    rt.emergency ? { t0: rt.emergency.t0, plan: rt.emergency.plan } : null,
-    rt.T,
-  );
-  hud.phase = st.phase;
-  hud.simMinutes = st.simMinutes;
-  hud.leg = st.leg ?? "-";
-  hud.oxygen = st.resources.oxygen;
-  hud.battery = st.resources.battery;
-  hud.eventsApplied = st.eventsApplied.map((e) => ({
-    label: `T+${e.event.atSimMinutes} min · ${e.effect}`,
-  }));
-  hud.emergencyActive = rt.emergency !== null && rt.emergency.plan !== null;
-  if (st.position !== null) {
-    const wx = st.position.xM - t.halfWidthM;
-    const wz = t.halfHeightM - st.position.yM;
-    const elev = sampleElevationM(rt.timeline.terrain, st.position.xM, st.position.yM, t.datumM);
-    hud.astronaut = { x: wx, y: worldY(t, elev), z: wz };
-  }
-}
 
 export function MissionLayer({
   runtimeRef,

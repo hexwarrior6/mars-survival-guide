@@ -129,6 +129,12 @@ const ZH: Record<string, string> = {
   "blocked area (simulated closure)": "封闭区（模拟事件）",
   "selection ring: 70 m display marker around the selected site (not a measurement)":
     "选中环：围绕所选科学目标的 70 米显示标记（非测量结果）",
+  "returnable-range boundary: region reachable within {min} walk-minutes of base (simulated, ±1–2 cells)":
+    "返航范围边界：距基地 {min} 步行分钟内可达的区域（模拟值，±1–2 格）",
+  "resources are sufficient: the whole region stays returnable (boundary hidden)":
+    "资源充裕：整个区域均可返航（边界隐藏）",
+  "returnable range: walking-minutes back to base (reverse-Dijkstra field, simulated). It answers “can I still get home NOW” — not “can the mission finish”. The boundary is honest to ±1–2 planning cells (20 m grid + alignment uncertainty).":
+    "返航范围：返回基地的步行分钟数（反向 Dijkstra 成本场，模拟值）。它回答“此刻能否回家”，而非“任务能否完成”。边界按 ±1–2 个规划格呈现（20 米格 + 对齐不确定度）。",
   "mission position marker: light column at the walking position, enlarged for visibility (not to scale)":
     "任务位置光标：行进位置上的光柱标记，放大以便远距可见（非真实比例）",
   "grid 20 m/cell · vertical relief ×3 display only": "网格 20 米/格 · 垂直起伏 ×3 仅用于显示",
@@ -138,10 +144,24 @@ const ZH: Record<string, string> = {
     "光照：主光方位与 DEM 山影一致（西北）· 暖色补光仅用于显示",
   "terrain: MRO CTX DEM/ortho mosaic (Mangold et al. 2021) · sources: {n} records · v{v}":
     "地形：MRO CTX DEM/正射镶嵌（Mangold et al. 2021）· 来源：{n} 条记录 · v{v}",
-  // bottom bar (timeline slot is real progress display; replay interaction is V2)
-  "mission progress": "任务进度",
-  "Mission timeline: replay interaction arrives in a later phase":
-    "任务时间轴：回看交互将在后续阶段提供",
+  // bottom bar: scrub-able mission timeline (V2)
+  "mission timeline": "任务时间轴",
+  "T+{t} of {total} minutes": "T+{t} / 共 {total} 分钟",
+  "jump to T+{t} min": "跳转到 T+{t} 分钟",
+  "replay view: deterministic simulation at T+{t}": "回放查看：T+{t} 时刻的确定性模拟",
+  "Mission timeline: drag to replay any moment": "任务时间轴：拖动可回看任意时刻",
+  "Science stop duration:": "科学停留时长：",
+  "Changing any of these parameters creates a NEW mission plan (resets playback).":
+    "更改以下任一参数都会生成新的推演计划（并重置回放）。",
+  // V4 plan A/B comparison
+  "Lock as plan A": "锁定为方案 A",
+  "Unlock plan A": "解锁方案 A",
+  "Lock this plan as plan A, then change inputs to compare": "把当前计划锁定为方案 A，然后调整条件进行对比",
+  "Plan A (locked)": "方案 A（锁定）",
+  "Plan B (current)": "方案 B（当前）",
+  "Plan A (locked): {a} · Plan B (current inputs): {b}": "方案 A（锁定）：{a} ｜ 方案 B（当前输入）：{b}",
+  "Δ (B − A)": "Δ（B − A）",
+  "Feasible": "可行",
   // sources drawer
   "Close (Esc)": "关闭 (Esc)",
   "Sources (observed)": "来源（观测）",

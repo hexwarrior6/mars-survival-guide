@@ -47,6 +47,7 @@ export function MissionPanel({
   strategy,
   reserveFraction,
   initialResources,
+  stopMinutes,
   mission,
   presetId,
   onPreset,
@@ -54,6 +55,7 @@ export function MissionPanel({
   onStrategy,
   onReserve,
   onInitialResources,
+  onStopMinutes,
   onStart,
   onPause,
   onResume,
@@ -67,6 +69,7 @@ export function MissionPanel({
   strategy: Strategy;
   reserveFraction: number;
   initialResources: number;
+  stopMinutes: number;
   mission: {
     phase: string;
     running: boolean;
@@ -82,6 +85,7 @@ export function MissionPanel({
   onStrategy: (s: Strategy) => void;
   onReserve: (v: number) => void;
   onInitialResources: (v: number) => void;
+  onStopMinutes: (v: number) => void;
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -151,6 +155,23 @@ export function MissionPanel({
           </p>
 
           <h3>{t("Budget settings")}</h3>
+          <p className="hint">
+            {t("Changing any of these parameters creates a NEW mission plan (resets playback).")}
+          </p>
+          <div className="slider-row">
+            <label htmlFor="stop-slider">
+              {t("Science stop duration:")} <span className="val">{stopMinutes}</span>
+            </label>
+            <input
+              id="stop-slider"
+              type="range"
+              min={0}
+              max={120}
+              step={5}
+              value={stopMinutes}
+              onChange={(e) => onStopMinutes(Number(e.target.value))}
+            />
+          </div>
           <div className="slider-row">
             <label htmlFor="initial-slider">
               {t("Initial resources:")} <span className="val">{initialResources}</span>
@@ -260,14 +281,49 @@ function fmt(c: StrategyCandidate, kind: "outbound" | "returnRoute"): string {
   return `${leg.distanceM.toFixed(0)} m · ${leg.minutes.toFixed(0)} min`;
 }
 
+export interface LockedPlan {
+  label: string;
+  result: RouteResult;
+  strategy: Strategy;
+}
+
+function compareRow(
+  t: (en: string, vars?: Record<string, string | number>) => string,
+  name: string,
+  a: string,
+  b: string,
+  delta: string,
+): JSX.Element {
+  return (
+    <tr>
+      <th>{name}</th>
+      <td>{a}</td>
+      <td>{b}</td>
+      <td className="delta">{delta}</td>
+    </tr>
+  );
+}
+
+const fmtDiff = (b: number, a: number, unit: string): string => {
+  const d = b - a;
+  if (Math.abs(d) < 0.05) return "±0";
+  return `${d > 0 ? "+" : ""}${d.toFixed(0)}${unit}`;
+};
+
 export function ResultsPanel({
   pkg,
   result,
   strategy,
+  locked,
+  onLock,
+  onUnlock,
 }: {
   pkg: LoadedPackage;
   result: RouteResult | null;
   strategy: Strategy;
+  locked: LockedPlan | null;
+  onLock: () => void;
+  onUnlock: () => void;
 }): JSX.Element | null {
   const { t } = useLang();
   const [collapsed, setCollapsed] = useState(false);
@@ -382,6 +438,64 @@ export function ResultsPanel({
                   b: pkg.scenario.initialResources.battery,
                 })}
               </p>
+              <div className="radio-row">
+                {locked === null ? (
+                  <button
+                    type="button"
+                    disabled={result.status !== "feasible"}
+                    onClick={onLock}
+                    title={result.status === "feasible" ? t("Lock this plan as plan A, then change inputs to compare") : undefined}
+                  >
+                    {t("Lock as plan A")}
+                  </button>
+                ) : (
+                  <button type="button" onClick={onUnlock}>
+                    {t("Unlock plan A")}
+                  </button>
+                )}
+              </div>
+              {locked !== null && (() => {
+                const a = locked.result.candidates.find((c) => c.strategy === locked.strategy) ?? locked.result.candidates[0];
+                const b = candidate;
+                if (a === undefined || b === undefined) return null;
+                return (
+                  <table className="results-table compare">
+                    <caption className="hint" style={{ textAlign: "left", captionSide: "top" }}>
+                      {t("Plan A (locked): {a} · Plan B (current inputs): {b}", {
+                        a: locked.label,
+                        b: `${result.candidates[0]?.strategy ?? ""} · stop ${b.stopMinutes.toFixed(0)} min`,
+                      })}
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>{t("Plan A (locked)")}</th>
+                        <th>{t("Plan B (current)")}</th>
+                        <th>{t("Δ (B − A)")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {compareRow(t, t("Round-trip totals"),
+                        `${a.totals.distanceM.toFixed(0)} m / ${a.totals.minutes.toFixed(0)} min`,
+                        `${b.totals.distanceM.toFixed(0)} m / ${b.totals.minutes.toFixed(0)} min`,
+                        fmtDiff(b.totals.distanceM - a.totals.distanceM, 0, " m") + " / " + fmtDiff(b.totals.minutes - a.totals.minutes, 0, " min"))}
+                      {compareRow(t, t("OXYGEN"),
+                        a.totals.oxygen.toFixed(1), b.totals.oxygen.toFixed(1),
+                        fmtDiff(b.totals.oxygen - a.totals.oxygen, 0, ""))}
+                      {compareRow(t, t("BATTERY"),
+                        a.totals.battery.toFixed(1), b.totals.battery.toFixed(1),
+                        fmtDiff(b.totals.battery - a.totals.battery, 0, ""))}
+                      {compareRow(t, t("Margins after return"),
+                        `O₂ ${a.margins.oxygen.toFixed(1)}`, `O₂ ${b.margins.oxygen.toFixed(1)}`,
+                        fmtDiff(b.margins.oxygen - a.margins.oxygen, 0, ""))}
+                      {compareRow(t, t("Feasible"),
+                        a.status === "feasible" ? t("FEASIBLE") : t("OVER BUDGET"),
+                        b.status === "feasible" ? t("FEASIBLE") : t("OVER BUDGET"),
+                        b.status === a.status ? "=" : "≠")}
+                    </tbody>
+                  </table>
+                );
+              })()}
             </>
           )}
         </div>
@@ -396,10 +510,12 @@ export function LegendDrawer({
   pkg,
   open,
   onClose,
+  returnableThreshold,
 }: {
   pkg: LoadedPackage;
   open: boolean;
   onClose: () => void;
+  returnableThreshold: number | null;
 }): JSX.Element | null {
   const { t } = useLang();
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -444,11 +560,29 @@ export function LegendDrawer({
           <dt>
             <span
               className="swatch"
+              style={{ width: 12, height: 12, border: "2px solid var(--accent)", borderRadius: "50%", background: "transparent" }}
+            />
+            {t("selection ring: 70 m display marker around the selected site (not a measurement)")}
+          </dt>
+          <dt>
+            <span
+              className="swatch"
               style={{ width: 4, height: 14, background: "#ffd9a0", borderRadius: 2 }}
             />
             {t("mission position marker: light column at the walking position, enlarged for visibility (not to scale)")}
           </dt>
+          <dt>
+            <span
+              className="swatch"
+              style={{ width: 12, height: 12, border: "1.5px solid var(--accent)", background: "rgba(255,180,94,0.13)" }}
+            />
+            {t("returnable-range boundary: region reachable within {min} walk-minutes of base (simulated, ±1–2 cells)", { min: returnableThreshold === null ? "—" : String(Math.min(returnableThreshold, 200)) })}
+          </dt>
         </dl>
+        <h3>{t("Returnable range")}</h3>
+        <p className="hint">
+          {t("returnable range: walking-minutes back to base (reverse-Dijkstra field, simulated). It answers “can I still get home NOW” — not “can the mission finish”. The boundary is honest to ±1–2 planning cells (20 m grid + alignment uncertainty).")}
+        </p>
         <h3>{t("Reading the terrain")}</h3>
         <p className="hint">{t("controls: left-drag pan · right-drag rotate/pitch · wheel zoom")}</p>
         <p className="hint">{t("grid 20 m/cell · vertical relief ×3 display only")}</p>

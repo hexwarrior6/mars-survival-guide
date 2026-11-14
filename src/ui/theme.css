@@ -305,7 +305,7 @@ body {
 .bar-note { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .bottom-bar .spacer { flex: 1; }
 
-/* the reserved timeline slot: a real progress readout, not a control */
+/* the timeline slot: real progress + scrub interaction (V2) */
 .tl-slot {
   flex: 1;
   min-width: 160px;
@@ -318,13 +318,16 @@ body {
   height: 7px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.07);
-  overflow: hidden;
+  overflow: visible;
   display: flex;
 }
+.tl-band.tl-live { cursor: ew-resize; touch-action: none; }
+.tl-band.tl-live:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.tl-band.tl-dragging .tl-marker { background: var(--accent-strong); }
 .tl-seg { height: 100%; }
-.tl-out { background: var(--route-outbound); opacity: 0.85; }
+.tl-out { background: var(--route-outbound); opacity: 0.85; border-radius: 4px 0 0 4px; }
 .tl-stop { background: #8a8078; opacity: 0.7; }
-.tl-ret { background: var(--route-return); opacity: 0.85; }
+.tl-ret { background: var(--route-return); opacity: 0.85; border-radius: 0 4px 4px 0; }
 .tl-marker {
   position: absolute;
   top: -2px;
@@ -332,7 +335,34 @@ body {
   width: 2px;
   background: var(--warm-white);
   box-shadow: 0 0 0 1px rgba(13, 10, 8, 0.8);
+  pointer-events: none;
 }
+.tl-tick {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 12px;
+  transform: translateX(-6px);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.tl-tick::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--warm-white);
+}
+.tl-tick-battery::after { background: var(--error); }
+.tl-tick-closure::after { background: var(--route-blocked); }
+.tl-tick:hover::after,
+.tl-tick:focus-visible::after { width: 4px; left: 4px; }
 .tl-note {
   color: var(--muted);
   font-size: 10px;

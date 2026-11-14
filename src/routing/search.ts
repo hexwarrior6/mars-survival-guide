@@ -16,7 +16,7 @@ export interface SearchResult {
   measuredMs: number;
 }
 
-class MinHeap {
+export class MinHeap {
   private keys: number[] = [];
   private tie: number[] = [];
   private nodes: number[] = [];
@@ -85,7 +85,7 @@ class MinHeap {
   }
 }
 
-const NEIGHBORS: ReadonlyArray<readonly [number, number]> = [
+export const NEIGHBORS: ReadonlyArray<readonly [number, number]> = [
   [-1, -1],
   [-1, 0],
   [-1, 1],

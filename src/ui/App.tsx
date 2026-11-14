@@ -15,11 +15,13 @@ import type { RouteRequest, RouteResult, Strategy } from "../domain/types.js";
 import { Sandbox, flyToSite, makeFpsStore, type FpsStore, type LoopMode } from "./Sandbox.js";
 import { PlanView2D } from "./PlanView2D.js";
 import { WebglErrorBoundary } from "./WebglErrorBoundary.js";
-import { LegendDrawer, MissionPanel, ResultsPanel, SourcesDrawer } from "./panels.js";
-import { BottomBar, ResourceChip } from "./BottomBar.js";
-import { buildMissionTimeline, missionStateAt, firstReturnForcingEvent, planEmergencyReturn } from "../simulation/engine.js";
-import { makeRuntime, type HudMirror, type MissionRuntime } from "../simulation/runtime.js";
-import { stepMissionRuntime } from "../ui/MissionLayer.js";
+import { LegendDrawer, MissionPanel, ResultsPanel, SourcesDrawer, type LockedPlan } from "./panels.js";
+import { BottomBar, ResourceChip, type TimelineTick } from "./BottomBar.js";
+import { buildMissionTimeline } from "../simulation/engine.js";
+import { makeRuntime, stepMissionRuntime, applyScrub, type HudMirror, type MissionRuntime } from "../simulation/runtime.js";
+import { costFieldToBase, type CostField } from "../routing/field.js";
+import { buildSearchGraph, edgeCostModel } from "../routing/graph.js";
+import { routePolyline } from "../domain/world.js";
 import { worldTransform } from "../domain/world.js";
 import { PRESETS } from "../simulation/presets.js";
 import { LangContext, makeT, applyLangToUrl, langFromHash, type Lang } from "./i18n.js";
@@ -39,6 +41,8 @@ export function App(): JSX.Element {
   const [strategy, setStrategy] = useState<Strategy>("terrain-aware");
   const [reserveFraction, setReserveFraction] = useState(RESERVE_DEFAULT);
   const [initialResources, setInitialResources] = useState(100);
+  const [stopMinutes, setStopMinutes] = useState(30);
+  const [locked, setLocked] = useState<LockedPlan | null>(null);
   const [view, setView] = useState<"3d" | "2d">("3d");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -61,6 +65,7 @@ export function App(): JSX.Element {
     emergencyActive: false,
     speed: 8,
     closureFired: false,
+    scrubbed: false,
   });
   const fpsStore = useRef<FpsStore>(makeFpsStore()).current;
   const [fpsTick, setFpsTick] = useState(0);
@@ -136,19 +141,19 @@ export function App(): JSX.Element {
     const site = load.pkg.sites.find((s) => s.id === selectedSiteId);
     if (!site) return null;
     const request: RouteRequest = {
-      requestId: `plan-${selectedSiteId}-${strategy}-${reserveFraction}-${requestId.current}`,
+      requestId: `plan-${selectedSiteId}-${strategy}-${reserveFraction}-${stopMinutes}-${requestId.current}`,
       startXM: load.pkg.scenario.base.xM,
       startYM: load.pkg.scenario.base.yM,
       targetSiteId: selectedSiteId,
       strategies: ["shortest", "terrain-aware"],
-      stopMinutes: site.samplingDurationMin,
+      stopMinutes,
       initialResources: { oxygen: initialResources, battery: initialResources },
       reserveFractions: { oxygen: reserveFraction, battery: reserveFraction },
       paramsVersion: PARAMS_VERSION,
     };
     const result: RouteResult = planRoundTrip(load.pkg, request);
     return { result, request: request.requestId };
-  }, [load, selectedSiteId, strategy, reserveFraction, initialResources]);
+  }, [load, selectedSiteId, strategy, reserveFraction, initialResources, stopMinutes]);
 
   useEffect(() => {
     if (load.kind === "ready" && selectedSiteId !== null) {
@@ -176,6 +181,75 @@ export function App(): JSX.Element {
 
   const preset = presetId !== null ? PRESETS.find((p) => p.id === presetId) ?? null : null;
   const t = useMemo(() => makeT(lang), [lang]);
+
+  // ---- V3 returnable range ----
+  // the reverse-Dijkstra field only changes when the closure graph changes;
+  // everything else (threshold from remaining resources) derives per render
+  const rtForClosure = missionRuntime.current;
+  const closureLive =
+    rtForClosure?.schedule.closure !== undefined &&
+    rtForClosure !== null &&
+    rtForClosure.schedule.closure !== null &&
+    rtForClosure.T >= rtForClosure.schedule.closure.atSimMinutes;
+  const [costField, setCostField] = useState<CostField | null>(null);
+  const [fieldComputing, setFieldComputing] = useState(false);
+  useEffect(() => {
+    if (load.kind !== "ready" || pkg === null) {
+      setCostField(null);
+      return;
+    }
+    const model = edgeCostModel(pkg.scenario.movementParameters, "terrain-aware");
+    const graph = buildSearchGraph(pkg.terrain, {
+      slopeThresholdDeg: pkg.scenario.movementParameters.passabilitySlopeThresholdDeg,
+      blockMask: closureLive ? closureMask : null,
+    });
+    setFieldComputing(true);
+    // synchronous on purpose (~30-45 ms measured): the state flip is one frame
+    const field = costFieldToBase(graph, pkg.scenario.base.rowCol[0], pkg.scenario.base.rowCol[1], model);
+    setCostField(field);
+    setFieldComputing(false);
+  }, [load, pkg, closureLive, closureMask]);
+  // threshold in walk-minutes from the CURRENT remaining resources (single
+  // source of truth: the same engine state the HUD shows), quantised to 1 min
+  const returnableThreshold = useMemo(() => {
+    if (costField === null) return Number.POSITIVE_INFINITY;
+    const rate = 100 / 480;
+    const reserve = reserveFraction * initialResources;
+    const o2Min = (hudMirror.current.oxygen - reserve) / rate;
+    const batMin = (hudMirror.current.battery - reserve) / rate;
+    return Math.floor(Math.max(0, Math.min(o2Min, batMin)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [costField, missionUi.oxygen, missionUi.battery, reserveFraction, initialResources]);
+  const returnable =
+    costField !== null && Number.isFinite(returnableThreshold) && returnableThreshold < 200
+      ? { field: costField, threshold: returnableThreshold }
+      : null;
+  // ---- V4 plan A/B comparison ----
+  const lockPlanA = (): void => {
+    if (result === null || result.status !== "feasible" || selectedSiteId === null) return;
+    setLocked({
+      label: `${selectedSiteId} · ${strategy} · stop ${stopMinutes} min · res ${initialResources}`,
+      result,
+      strategy,
+    });
+  };
+  const lockedCells = useMemo(() => {
+    if (locked === null) return null;
+    const a = locked.result.candidates.find((c) => c.strategy === locked.strategy) ?? locked.result.candidates[0];
+    if (a === undefined) return null;
+    return {
+      out: a.outbound.pathCells,
+      ret: a.returnRoute.pathCells,
+    };
+  }, [locked]);
+  const lockedPolylines = useMemo(() => {
+    if (lockedCells === null || load.kind !== "ready") return null;
+    return {
+      out: routePolyline(load.pkg.terrain, worldTransform(load.pkg.terrain), lockedCells.out, 1.5),
+      ret: routePolyline(load.pkg.terrain, worldTransform(load.pkg.terrain), lockedCells.ret, 1.5),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedCells, load]);
   const setLang = (l: Lang): void => {
     setLangState(l);
     applyLangToUrl(l);
@@ -304,13 +378,60 @@ export function App(): JSX.Element {
   const timelineSegments = tl
     ? { outboundMin: tl.outboundTotalMin, stopMin: tl.stopMinutes, returnMin: tl.returnTotalMin }
     : null;
+  // scrub range: nominal plan length, extended to cover an active emergency
+  const rtNow = missionRuntime.current;
+  const emergencyEnd =
+    rtNow?.emergency && rtNow.emergency.plan !== null
+      ? rtNow.emergency.t0 + rtNow.emergency.plan.totalMinutes
+      : 0;
+  const timelineMaxT = Math.max(totalMinutes, emergencyEnd);
+  const timelineTicks: TimelineTick[] = [];
+  if (rtNow !== null) {
+    for (const e of rtNow.schedule.batteryLosses) {
+      timelineTicks.push({ t: e.atSimMinutes, kind: "battery" });
+    }
+    if (rtNow.schedule.closure !== null) {
+      timelineTicks.push({ t: rtNow.schedule.closure.atSimMinutes, kind: "closure" });
+    }
+  }
+  const handleScrub = (T: number): void => {
+    const rt = missionRuntime.current;
+    if (rt === null || pkg === null) return;
+    applyScrub(rt, hudMirror.current, worldTransform(pkg.terrain), T);
+    setMissionUi((ui) => ({
+      ...ui,
+      phase: hudMirror.current.phase,
+      running: rt.running,
+      paused: rt.paused,
+      started: true,
+      simMinutes: hudMirror.current.simMinutes,
+      oxygen: hudMirror.current.oxygen,
+      battery: hudMirror.current.battery,
+      events: hudMirror.current.eventsApplied.map((e) => e.label),
+      emergencyActive: hudMirror.current.emergencyActive,
+      scrubbed: true,
+    }));
+    setFpsTick((v) => (v + 1) % 1000); // force a 2D canvas redraw
+  };
+  const handleTogglePlay = (): void => {
+    const rt = missionRuntime.current;
+    if (rt === null) return;
+    if (rt.running && !rt.paused) {
+      rt.paused = true;
+    } else {
+      rt.running = true;
+      rt.paused = false;
+    }
+    setMissionUi((ui) => ({ ...ui, scrubbed: false, running: rt.running, paused: rt.paused }));
+    setFpsTick((v) => (v + 1) % 1000);
+  };
 
   const startMission = (): void => {
     const rt = missionRuntime.current;
     if (rt === null || result === null || result.status !== "feasible") return;
     rt.running = true;
     rt.paused = false;
-    setMissionUi((ui) => ({ ...ui, started: true }));
+    setMissionUi((ui) => ({ ...ui, started: true, scrubbed: false }));
   };
   const pauseMission = (): void => {
     const rt = missionRuntime.current;
@@ -319,6 +440,7 @@ export function App(): JSX.Element {
   const resumeMission = (): void => {
     const rt = missionRuntime.current;
     if (rt !== null) rt.paused = false;
+    setMissionUi((ui) => ({ ...ui, scrubbed: false, paused: false }));
   };
   const resetMission = (): void => {
     const rt = missionRuntime.current;
@@ -349,6 +471,7 @@ export function App(): JSX.Element {
     hud.phase = "planned";
     hud.eventsApplied = [];
     hud.astronaut = null;
+    setMissionUi((ui) => ({ ...ui, scrubbed: false, paused: false, running: false, started: false, simMinutes: 0 }));
   };
   const triggerBattery = (): void => {
     const rt = missionRuntime.current;
@@ -399,6 +522,8 @@ export function App(): JSX.Element {
                   runtimeRef={missionRuntime}
                   hudRef={hudMirror}
                   lang={lang}
+                  returnable={returnable}
+                  lockedRoute={lockedPolylines}
                 />
               </div>
             </WebglErrorBoundary>
@@ -415,6 +540,8 @@ export function App(): JSX.Element {
                   xM: hudMirror.current.astronaut.x + worldTransform(pkg.terrain).halfWidthM,
                   yM: worldTransform(pkg.terrain).halfHeightM - hudMirror.current.astronaut.z,
                 } : null}
+                returnable={returnable}
+                lockedCells={lockedCells}
               />
             </div>
           )}
@@ -524,6 +651,8 @@ export function App(): JSX.Element {
           selectedSiteId={selectedSiteId}
           strategy={strategy}
           reserveFraction={reserveFraction}
+          initialResources={initialResources}
+          stopMinutes={stopMinutes}
           mission={{
             phase: missionUi.phase,
             running: missionUi.running,
@@ -547,8 +676,8 @@ export function App(): JSX.Element {
           }}
           onStrategy={setStrategy}
           onReserve={setReserveFraction}
-          initialResources={initialResources}
           onInitialResources={setInitialResources}
+          onStopMinutes={setStopMinutes}
           onStart={startMission}
           onPause={pauseMission}
           onResume={resumeMission}
@@ -558,7 +687,14 @@ export function App(): JSX.Element {
           onSpeed={setSpeed}
         />
 
-        <ResultsPanel pkg={pkg} result={result} strategy={strategy} />
+        <ResultsPanel
+          pkg={pkg}
+          result={result}
+          strategy={strategy}
+          locked={locked}
+          onLock={lockPlanA}
+          onUnlock={() => setLocked(null)}
+        />
 
         <BottomBar
           bar={{
@@ -570,12 +706,23 @@ export function App(): JSX.Element {
             running: missionUi.running,
             paused: missionUi.paused,
             started: missionUi.started,
+            scrubbed: missionUi.scrubbed,
+            speed: missionUi.speed,
           }}
           segments={timelineSegments}
+          maxT={timelineMaxT}
+          ticks={timelineTicks}
+          onScrub={handleScrub}
+          onTogglePlay={handleTogglePlay}
           onOpenLegend={() => setLegendOpen(true)}
         />
 
-        <LegendDrawer pkg={pkg} open={legendOpen} onClose={() => setLegendOpen(false)} />
+        <LegendDrawer
+          pkg={pkg}
+          open={legendOpen}
+          onClose={() => setLegendOpen(false)}
+          returnableThreshold={returnable === null ? null : returnable.threshold}
+        />
         <SourcesDrawer pkg={pkg} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
       </div>
     </LangContext.Provider>
