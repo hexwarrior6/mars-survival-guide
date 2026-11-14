@@ -3,34 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mars Survival Guide - phase 2 dev console</title>
-    <style>
-      :root { color-scheme: dark; }
-      body {
-        background: #1a120e;
-        color: #e8ddd2;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        margin: 2rem;
-        line-height: 1.45;
-      }
-      h1 { font-size: 1.1rem; letter-spacing: 0.08em; }
-      h2 { font-size: 0.95rem; color: #ffb45e; margin-top: 1.5rem; }
-      table { border-collapse: collapse; margin-top: 0.5rem; font-size: 0.85rem; }
-      th, td { border: 1px solid #4a3a2e; padding: 0.3rem 0.6rem; text-align: left; }
-      th { color: #ffb45e; font-weight: 600; }
-      .status-feasible { color: #9dd39d; }
-      .status-over_budget { color: #ff8f6b; }
-      .status-unreachable, .status-invalid_input { color: #ff6b6b; }
-      .note { color: #b7a796; font-size: 0.8rem; }
-    </style>
+    <title>Mars Survival Guide - Jezero mission planner</title>
   </head>
   <body>
-    <h1>MARS SURVIVAL GUIDE &mdash; PHASE 2 DEV CONSOLE (route &amp; budget kernel check)</h1>
-    <p class="note">
-      Development verification output for docs/IMPLEMENTATION.md phase 2. Not the product UI.
-      All resource numbers are simulated budget units; see assumptions below.
-    </p>
-    <div id="app">loading data package&hellip;</div>
-    <script type="module" src="/src/dev/main.ts"></script>
+    <div id="root"></div>
+    <script>
+      window.__errors = [];
+      window.addEventListener("error", (e) => {
+        window.__errors.push(
+          "error: " + String(e.message || e.filename || e.target?.tagName || "unknown"),
+        );
+      }, true);
+      window.addEventListener("unhandledrejection", (e) =>
+        window.__errors.push("rejection: " + String(e.reason)),
+      );
+      const _ce = console.error.bind(console);
+      console.error = (...args) => {
+        window.__errors.push("console.error: " + args.map(String).join(" | ").slice(0, 300));
+        _ce(...args);
+      };
+    </script>
+    <script type="module" src="/src/ui/main.tsx"></script>
   </body>
 </html>
