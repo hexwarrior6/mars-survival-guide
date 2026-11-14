@@ -41,6 +41,7 @@ import {
   type WorldTransform,
  worldY, sampleElevationM } from "../domain/world.js";
 import { commandCamera, readCameraCommand } from "./cameraBus.js";
+import type { Lang } from "./i18n.js";
 
 const LIFT_M = 1.5; // routes render 1.5 m above ground (display only)
 const EASE = (x: number): number => x * x * (3 - 2 * x);
@@ -211,11 +212,13 @@ function Markers({
   t,
   selectedSiteId,
   overlayRef,
+  lang,
 }: {
   pkg: LoadedPackage;
   t: WorldTransform;
   selectedSiteId: string | null;
   overlayRef: React.RefObject<HTMLDivElement | null>;
+  lang: Lang;
 }): JSX.Element {
   const siteMarkers = useMemo(
     () =>
@@ -289,7 +292,7 @@ function Markers({
           distanceFactor={1500}
           zIndexRange={[20, 0]}
         >
-          <div className="site-label base-label">BASE (simulated) · scale figure 1.7 m</div>
+          <div className="site-label base-label">{lang === "zh" ? "基地（模拟）· 比例人形 1.7 米" : "BASE (simulated) · scale figure 1.7 m"}</div>
         </Html>
       </group>
     </group>
@@ -392,6 +395,7 @@ export function Sandbox({
   onLoopMode,
   runtimeRef,
   hudRef,
+  lang,
 }: {
   pkg: LoadedPackage;
   result: RouteResult | null;
@@ -403,6 +407,7 @@ export function Sandbox({
   onLoopMode: (mode: LoopMode) => void;
   runtimeRef: React.MutableRefObject<MissionRuntime | null>;
   hudRef: React.MutableRefObject<HudMirror>;
+  lang: Lang;
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
   const [frameloop, setFrameloop] = useState<"always" | "never">("always");
@@ -445,7 +450,7 @@ export function Sandbox({
       <Suspense fallback={null}>
         <TerrainMesh terrain={pkg.terrain} t={t} />
       </Suspense>
-      <Markers pkg={pkg} t={t} selectedSiteId={selectedSiteId} overlayRef={overlayRef} />
+      <Markers pkg={pkg} t={t} selectedSiteId={selectedSiteId} overlayRef={overlayRef} lang={lang} />
       <RouteLines
         terrain={pkg.terrain}
         t={t}

@@ -19,6 +19,7 @@ import { makeRuntime, type HudMirror, type MissionRuntime } from "../simulation/
 import { stepMissionRuntime } from "../ui/MissionLayer.js";
 import { worldTransform } from "../domain/world.js";
 import { PRESETS } from "../simulation/presets.js";
+import { LangContext, makeT, applyLangToUrl, langFromHash, type Lang } from "./i18n.js";
 import "./theme.css";
 
 type LoadState =
@@ -40,6 +41,7 @@ export function App(): JSX.Element {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [webglFailed, setWebglFailed] = useState(false);
   const [loopMode, setLoopMode] = useState<LoopMode>("raf");
+  const [lang, setLangState] = useState<Lang>(langFromHash);
   const missionRuntime = useRef<MissionRuntime | null>(null);
   const [presetId, setPresetId] = useState<string | null>(null);
   const [missionUi, setMissionUi] = useState({
@@ -96,6 +98,14 @@ export function App(): JSX.Element {
     const onChange = (e: MediaQueryListEvent): void => setReducedMotion(e.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    applyLangToUrl(lang);
+    const onHash = (): void => setLangState(langFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -159,6 +169,11 @@ export function App(): JSX.Element {
   }, [load]);
 
   const preset = presetId !== null ? PRESETS.find((p) => p.id === presetId) ?? null : null;
+  const t = useMemo(() => makeT(lang), [lang]);
+  const setLang = (l: Lang): void => {
+    setLangState(l);
+    applyLangToUrl(l);
+  };
 
   // build the mission runtime whenever a feasible plan (or preset) exists
   useEffect(() => {
@@ -241,7 +256,7 @@ export function App(): JSX.Element {
         <div className="stage" style={{ gridArea: "topbar" }}>
           <div className="loading-overlay">
             <div className="spinner" aria-hidden="true" />
-            <p>Loading frozen Jezero data package…</p>
+            <p>{t("Loading frozen Jezero data package…")}</p>
           </div>
         </div>
       </div>
@@ -252,11 +267,9 @@ export function App(): JSX.Element {
       <div className="console">
         <div className="stage" style={{ gridArea: "topbar" }}>
           <div className="loading-overlay">
-            <p>
-              Data package failed to load: {load.message}
-            </p>
+            <p>{t("Data package failed to load: {msg}", { msg: load.message })}</p>
             <button type="button" onClick={() => setReloadCounter((c) => c + 1)}>
-              Retry
+              {t("Retry")}
             </button>
           </div>
         </div>
@@ -270,7 +283,7 @@ export function App(): JSX.Element {
         <div className="stage" style={{ gridArea: "topbar" }}>
           <div className="loading-overlay">
             <div className="spinner" aria-hidden="true" />
-            <p>Loading frozen Jezero data package…</p>
+            <p>{t("Loading frozen Jezero data package…")}</p>
           </div>
         </div>
       </div>
@@ -347,12 +360,23 @@ export function App(): JSX.Element {
   };
 
   return (
+    <LangContext.Provider value={{ lang, setLang, t }}>
     <div className="console">
       <header className="topbar">
         <span className="brand">MARS SURVIVAL GUIDE</span>
-        <span className="brand-sub">JEZERO / MISSION PLANNER · PHASE 4</span>
-        <span className="badge-sim">SIMULATED SCENARIO · REAL TERRAIN DATA</span>
+        <span className="brand-sub">{t("JEZERO / MISSION PLANNER · PHASE 4")}</span>
+        <span className="badge-sim">{t("SIMULATED SCENARIO · REAL TERRAIN DATA")}</span>
         <span className="spacer" />
+        <button
+          type="button"
+          className="small"
+          aria-pressed={lang === "zh"}
+          onClick={() => {
+            setLang(lang === "zh" ? "en" : "zh");
+          }}
+        >
+          {lang === "zh" ? "EN" : "中文"}
+        </button>
         <button
           type="button"
           className="small"
@@ -360,12 +384,17 @@ export function App(): JSX.Element {
             setDrawerOpen(true);
           }}
         >
-          Sources &amp; assumptions
+          {t("Sources & assumptions")}
         </button>
         <span className="fps" aria-live="off">
           {fpsStore.current.fps > 0
-            ? `${fpsStore.current.fps.toFixed(0)} ${loopMode === "raf" ? "fps" : "frames/s (timer mode · background tab)"} · ${fpsStore.current.calls} draw calls`
-            : "measuring fps…"}
+            ? t(
+                loopMode === "raf"
+                  ? "{fps} fps · {calls} draw calls"
+                  : "{fps} frames/s (timer mode · background tab) · {calls} draw calls",
+                { fps: fpsStore.current.fps.toFixed(0), calls: fpsStore.current.calls },
+              )
+            : t("measuring fps…")}
           <span hidden>{fpsTick}</span>
         </span>
       </header>
@@ -380,7 +409,7 @@ export function App(): JSX.Element {
               setView("3d");
             }}
           >
-            3D sandbox
+            {t("3D sandbox")}
           </button>
           <button
             type="button"
@@ -390,7 +419,7 @@ export function App(): JSX.Element {
               setView("2d");
             }}
           >
-            2D plan (cross-check)
+            {t("2D plan (cross-check)")}
           </button>
           <button
             type="button"
@@ -400,7 +429,7 @@ export function App(): JSX.Element {
               flyToSite(pkg, null, reducedMotion);
             }}
           >
-            Reset view
+            {t("Reset view")}
           </button>
         </div>
         <div
@@ -430,6 +459,7 @@ export function App(): JSX.Element {
                 onLoopMode={setLoopMode}
                 runtimeRef={missionRuntime}
                 hudRef={hudMirror}
+                lang={lang}
               />
             </div>
           </WebglErrorBoundary>
@@ -451,7 +481,7 @@ export function App(): JSX.Element {
         )}
         {webglFailed && view === "2d" ? (
           <div className="state-banner warn" style={{ position: "absolute", bottom: 10, left: 10, right: 10 }}>
-            3D rendering is unavailable right now — showing the 2D plan view. {" "}
+            {t("3D rendering is unavailable right now — showing the 2D plan view. ")}{" "}
             <button
               type="button"
               className="small"
@@ -460,7 +490,7 @@ export function App(): JSX.Element {
                 setView("3d");
               }}
             >
-              Try 3D again
+              {t("Try 3D again")}
             </button>
           </div>
         ) : null}
@@ -529,27 +559,30 @@ export function App(): JSX.Element {
         <div className="legend-strip">
           <span>
             <span className="swatch" style={{ background: "var(--route-outbound)" }} />
-            outbound route
+            {t("outbound route")}
           </span>
           <span>
             <span className="swatch" style={{ background: "var(--route-return)" }} />
-            return route (recomputed)
+            {t("return route (recomputed)")}
           </span>
           <span>
             <span className="swatch" style={{ background: "var(--route-blocked)" }} />
-            blocked area (events, phase 4)
+            {t("blocked area (simulated closure)")}
           </span>
           <span className="north">N ↑</span>
-          <span>grid 20 m/cell · vertical relief ×3 display only</span>
-          <span>units: meters · minutes · simulated 0–100 budget units</span>
+          <span>{t("grid 20 m/cell · vertical relief ×3 display only")}</span>
+          <span>{t("units: meters · minutes · simulated 0–100 budget units")}</span>
           <span className="units">
-            terrain: MRO CTX DEM/ortho mosaic (Mangold et al. 2021) · sources:{" "}
-            {pkg.sources.sources.length} records · v{pkg.region.schemaVersion}
+            {t("terrain: MRO CTX DEM/ortho mosaic (Mangold et al. 2021) · sources: {n} records · v{v}", {
+              n: pkg.sources.sources.length,
+              v: pkg.region.schemaVersion,
+            })}
           </span>
         </div>
       </footer>
 
       <SourcesDrawer pkg={pkg} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </div>
+    </LangContext.Provider>
   );
 }

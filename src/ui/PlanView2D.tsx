@@ -7,6 +7,7 @@ import type { LoadedPackage } from "../domain/load.js";
 import type { RouteResult, Strategy } from "../domain/types.js";
 import type { MissionRuntime } from "../simulation/runtime.js";
 import { worldTransform } from "../domain/world.js";
+import { useLang } from "./i18n.js";
 
 const SIZE = 720; // canvas pixels; region maps to SIZE x SIZE
 
@@ -27,6 +28,7 @@ export function PlanView2D({
   redrawKey: number;
   astronaut: { xM: number; yM: number } | null;
 }): JSX.Element {
+  const { lang } = useLang();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -135,7 +137,7 @@ export function PlanView2D({
       ctx.fillRect(bx - 4, by - 4, 8, 8);
       ctx.fillStyle = "#f5ead9";
       ctx.font = "11px ui-monospace, monospace";
-      ctx.fillText("BASE (sim)", bx + 8, by + 4);
+      ctx.fillText(lang === "zh" ? "基地（模拟）" : "BASE (sim)", bx + 8, by + 4);
 
       // scale bar: 500 m
       const barPx = (500 / pkg.region.boundsLocalM.widthM) * SIZE;
@@ -169,7 +171,7 @@ export function PlanView2D({
     // redraw when image cached
     const t = setTimeout(draw, 60);
     return () => clearTimeout(t);
-  }, [pkg, result, strategy, selectedSiteId, redrawKey, runtimeRef]);
+  }, [pkg, result, strategy, selectedSiteId, redrawKey, runtimeRef, lang]);
 
   return (
     <canvas

@@ -4,6 +4,7 @@
 import { useEffect, useRef } from "react";
 import type { JSX } from "react";
 import type { LoadedPackage } from "../domain/load.js";
+import { useLang } from "./i18n.js";
 import type { RouteResult, Strategy, StrategyCandidate } from "../domain/types.js";
 
 export function MissionPanel({
@@ -55,9 +56,10 @@ export function MissionPanel({
   onTriggerClosure: () => void;
   onSpeed: (s: number) => void;
 }): JSX.Element {
+  const { t } = useLang();
   return (
     <section className="panel mission" aria-label="Mission settings">
-      <h2>Plan your Marswalk</h2>
+      <h2>{t("Plan your Marswalk")}</h2>
       <ul className="site-list">
         {pkg.sites
           .filter((s) => pkg.scenario.availableSiteIds.includes(s.id))
@@ -72,8 +74,10 @@ export function MissionPanel({
                   {site.id} · {site.name}
                 </span>
                 <span className="sub">
-                  stop {site.samplingDurationMin} min · position ±{site.positionUncertaintyM} m ·
-                  landform-anchored
+                  {t("stop {min} min · position ±{unc} m · landform-anchored", {
+                    min: site.samplingDurationMin,
+                    unc: site.positionUncertaintyM,
+                  })}
                 </span>
               </button>
             </li>
@@ -89,17 +93,15 @@ export function MissionPanel({
               checked={strategy === s}
               onChange={() => onStrategy(s)}
             />
-            {s === "shortest" ? "Shortest" : "Terrain-aware"}
+            {s === "shortest" ? t("Shortest") : t("Terrain-aware")}
           </label>
         ))}
       </div>
-      <p className="empty-hint">
-        Terrain-aware trades a little distance for less time on slopes and climbs.
-      </p>
+      <p className="empty-hint">{t("Terrain-aware trades a little distance for less time on slopes and climbs.")}</p>
 
       <div className="slider-row">
         <label htmlFor="initial-slider">
-          Initial resources: <span className="val">{initialResources}</span>
+          {t("Initial resources:")} <span className="val">{initialResources}</span>
         </label>
         <input
           id="initial-slider"
@@ -111,14 +113,13 @@ export function MissionPanel({
           onChange={(e) => onInitialResources(Number(e.target.value))}
         />
         <p className="empty-hint">
-          Starting oxygen and battery, each on the simulated 0&ndash;100 budget scale (scenario
-          default 100).
+          {t("Starting oxygen and battery, each on the simulated 0–100 budget scale (scenario default 100).")}
         </p>
       </div>
 
       <div className="slider-row">
         <label htmlFor="reserve-slider">
-          Reserve per resource: <span className="val">{Math.round(reserveFraction * 100)}%</span>
+          {t("Reserve per resource:")} <span className="val">{Math.round(reserveFraction * 100)}%</span>
         </label>
         <input
           id="reserve-slider"
@@ -130,28 +131,27 @@ export function MissionPanel({
           onChange={(e) => onReserve(Number(e.target.value))}
         />
         <p className="empty-hint">
-          Reserve = {Math.round(reserveFraction * 100)}% of initial capacity kept aside (simulated
-          demo value, not a NASA safety standard).
+          {t("Reserve = {pct}% of initial capacity kept aside (simulated demo value, not a NASA safety standard).", { pct: Math.round(reserveFraction * 100) })}
         </p>
       </div>
 
-      <h2>Mission control (simulated)</h2>
+      <h2>{t("Mission control (simulated)")}</h2>
       <div className="radio-row" role="group" aria-label="Expedition control">
         <button type="button" className="primary" disabled={mission.started || !mission.feasible} onClick={onStart}>
-          START EXPEDITION
+          {t("START EXPEDITION")}
         </button>
         <button type="button" disabled={!mission.running || mission.paused} onClick={onPause}>
-          PAUSE
+          {t("PAUSE")}
         </button>
         <button type="button" disabled={!mission.running || !mission.paused} onClick={onResume}>
-          RESUME
+          {t("RESUME")}
         </button>
         <button type="button" disabled={!mission.started} onClick={onResetMission}>
-          RESET
+          {t("RESET")}
         </button>
       </div>
       <p className="empty-hint">
-        Speed:
+        {t("Speed:")}
         {[1, 4, 8, 16].map((s) => (
           <label key={s} style={{ marginRight: 8 }}>
             <input
@@ -170,36 +170,34 @@ export function MissionPanel({
           disabled={!mission.running || mission.paused}
           onClick={onTriggerBattery}
         >
-          BATTERY LOSS −45
+          {t("BATTERY LOSS −45")}
         </button>
         <button
           type="button"
           disabled={!mission.running || mission.paused || mission.closureFired}
           onClick={onTriggerClosure}
         >
-          CLOSE PASSAGE
+          {t("CLOSE PASSAGE")}
         </button>
       </div>
 
-      <h2>Scenarios</h2>
+      <h2>{t("Scenarios")}</h2>
       <ul className="site-list">
         {[
-          { id: "nominal", label: "NOMINAL ROUND TRIP" },
-          { id: "closure", label: "PASSAGE CLOSES WHILE SAMPLING" },
-          { id: "tight", label: "BATTERY: RESERVE BREACHED" },
-          { id: "stranded", label: "BATTERY: STRANDED" },
+          { id: "nominal", label: t("NOMINAL ROUND TRIP") },
+          { id: "closure", label: t("PASSAGE CLOSES WHILE SAMPLING") },
+          { id: "tight", label: t("BATTERY: RESERVE BREACHED") },
+          { id: "stranded", label: t("BATTERY: STRANDED") },
         ].map((p) => (
           <li key={p.id}>
             <button type="button" aria-pressed={presetId === p.id} onClick={() => onPreset(p.id)}>
               <span className="sid">{p.label}</span>
-              <span className="sub">scripted simulated replay · resets the mission</span>
+              <span className="sub">{t("scripted simulated replay · resets the mission")}</span>
             </button>
           </li>
         ))}
       </ul>
-      <p className="empty-hint">
-        All events and scenarios are simulated replays keyed to mission minutes (deterministic).
-      </p>
+      <p className="empty-hint">{t("All events and scenarios are simulated replays keyed to mission minutes (deterministic).")}</p>
     </section>
   );
 }
@@ -218,13 +216,13 @@ export function ResultsPanel({
   result: RouteResult | null;
   strategy: Strategy;
 }): JSX.Element {
+  const { t } = useLang();
   if (result === null) {
     return (
       <section className="panel results" aria-label="Route results">
-        <h2>Route &amp; budget</h2>
+        <h2>{t("Route & budget")}</h2>
         <p className="empty-hint">
-          Select a science target to plan a round trip. Nothing is computed yet — no fake
-          numbers are shown.
+          {t("Select a science target to plan a round trip. Nothing is computed yet — no fake numbers are shown.")}
         </p>
       </section>
     );
@@ -236,34 +234,32 @@ export function ResultsPanel({
         const c = result.recommended;
         return (
           <div className="state-banner ok">
-            <strong>FEASIBLE</strong> — plan ready. Margin after return: oxygen{" "}
-            {c!.margins.oxygen.toFixed(1)}, battery {c!.margins.battery.toFixed(1)} (simulated
-            units).
+            <strong>{t("FEASIBLE")}</strong> — {t("FEASIBLE — plan ready. Margin after return: oxygen {o2}, battery {bat} (simulated units).", { o2: c!.margins.oxygen.toFixed(1), bat: c!.margins.battery.toFixed(1) })}
           </div>
         );
       }
       case "over_budget":
         return (
           <div className="state-banner warn">
-            <strong>OVER BUDGET</strong> — {result.message}
+            <strong>{t("OVER BUDGET")}</strong> — {result.message}
             <br />
             <span className="code">
-              reasons: {result.candidates[0]?.reasonCodes.join(", ") ?? "-"}
+              {t("reasons: {codes}", { codes: result.candidates[0]?.reasonCodes.join(", ") ?? "-" })}
             </span>
           </div>
         );
       case "unreachable":
         return (
           <div className="state-banner error">
-            <strong>UNREACHABLE</strong> — {result.message}
+            <strong>{t("UNREACHABLE")}</strong> — {result.message}
             <br />
-            <span className="code">reason: {result.reasonCodes.join(", ")}</span>
+            <span className="code">{t("reason: {codes}", { codes: result.reasonCodes.join(", ") })}</span>
           </div>
         );
       case "invalid_input":
         return (
           <div className="state-banner error">
-            <strong>INVALID INPUT</strong> — {result.message}
+            <strong>{t("INVALID INPUT")}</strong> — {result.message}
           </div>
         );
       default:
@@ -273,48 +269,52 @@ export function ResultsPanel({
 
   return (
     <section className="panel results" aria-label="Route results">
-      <h2>Route &amp; budget</h2>
+      <h2>{t("Route & budget")}</h2>
       {statusBanner()}
       {candidate && (
         <>
           <table className="results-table">
             <caption className="empty-hint" style={{ textAlign: "left", captionSide: "bottom" }}>
-              strategy &quot;{candidate.strategy}&quot; · request {result.requestId} · computed in{" "}
-              {result.measuredMs.toFixed(1)} ms · resource units are simulated 0–100 budget points
+              {t("strategy \"{s}\" · request {id} · computed in {ms} ms · resource units are simulated 0–100 budget points", { s: candidate.strategy, id: result.requestId, ms: result.measuredMs.toFixed(1) })}
             </caption>
             <tbody>
               <tr>
-                <th>Outbound</th>
+                <th>{t("Outbound")}</th>
                 <td>{fmt(candidate, "outbound")}</td>
               </tr>
               <tr>
-                <th>Science stop</th>
-                <td>{candidate.stopMinutes.toFixed(0)} min (simulated)</td>
+                <th>{t("Science stop")}</th>
+                <td>{t("{min} min (simulated)", { min: candidate.stopMinutes.toFixed(0) })}</td>
               </tr>
               <tr>
-                <th>Return (recomputed)</th>
+                <th>{t("Return (recomputed)")}</th>
                 <td>{fmt(candidate, "returnRoute")}</td>
               </tr>
               <tr>
-                <th>Round-trip totals</th>
+                <th>{t("Round-trip totals")}</th>
                 <td>
-                  {candidate.totals.distanceM.toFixed(0)} m · {candidate.totals.minutes.toFixed(0)}{" "}
-                  min · O₂ {candidate.totals.oxygen.toFixed(1)} · battery{" "}
-                  {candidate.totals.battery.toFixed(1)}
+                  {t("{d} m · {min} min · O₂ {o2} · battery {bat}", {
+                    d: candidate.totals.distanceM.toFixed(0),
+                    min: candidate.totals.minutes.toFixed(0),
+                    o2: candidate.totals.oxygen.toFixed(1),
+                    bat: candidate.totals.battery.toFixed(1),
+                  })}
                 </td>
               </tr>
               <tr>
-                <th>Margins after return</th>
+                <th>{t("Margins after return")}</th>
                 <td>
-                  O₂ {candidate.margins.oxygen.toFixed(1)} · battery{" "}
-                  {candidate.margins.battery.toFixed(1)}
+                  {t("O₂ {o2} · battery {bat}", {
+                    o2: candidate.margins.oxygen.toFixed(1),
+                    bat: candidate.margins.battery.toFixed(1),
+                  })}
                 </td>
               </tr>
             </tbody>
           </table>
           {result.candidates.length > 1 && (
             <p className="empty-hint">
-              Strategy comparison:{" "}
+              {t("Strategy comparison:")}{" "}
               {result.candidates
                 .map(
                   (c) =>
@@ -343,6 +343,7 @@ export function SourcesDrawer({
   open: boolean;
   onClose: () => void;
 }): JSX.Element | null {
+  const { t } = useLang();
   const closeRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (!open) return;
@@ -359,9 +360,9 @@ export function SourcesDrawer({
       <div className="drawer-backdrop" onClick={onClose} aria-hidden="true" />
       <aside className="drawer" role="dialog" aria-modal="true" aria-label="Sources and assumptions">
         <button ref={closeRef} type="button" className="small" onClick={onClose}>
-          Close (Esc)
+          {t("Close (Esc)")}
         </button>
-        <h3>Sources (observed)</h3>
+        <h3>{t("Sources (observed)")}</h3>
         {pkg.sources.sources.map((s) => (
           <div className="src-block" key={s.id}>
             <dl>
@@ -376,12 +377,12 @@ export function SourcesDrawer({
                   {s.sourceUrl}
                 </a>
               </dd>
-              <dd>terms: {s.usageTerms}</dd>
-              <dd>limits: {s.limitations}</dd>
+              <dd>{t("terms: {terms}", { terms: s.usageTerms })}</dd>
+              <dd>{t("limits: {limits}", { limits: s.limitations })}</dd>
             </dl>
           </div>
         ))}
-        <h3>Simulated planning assumptions</h3>
+        <h3>{t("Simulated planning assumptions")}</h3>
         <p className="empty-hint">{pkg.sources.assumptions.note}</p>
         <table className="results-table">
           <tbody>
@@ -397,14 +398,13 @@ export function SourcesDrawer({
             ))}
           </tbody>
         </table>
-        <h3>Classification</h3>
+        <h3>{t("Classification")}</h3>
         <p className="empty-hint">
-          observed: {pkg.sources.classification.observed.join(", ")}
+          {t("observed:")} {pkg.sources.classification.observed.join(", ")}
           <br />
-          derived: terrain grids, ortho extracts, alignment measurements, landform-anchored site
-          positions
+          {t("derived: terrain grids, ortho extracts, alignment measurements, landform-anchored site positions")}
           <br />
-          simulated: base, events, passability threshold, all EVA budget numbers
+          {t("simulated: base, events, passability threshold, all EVA budget numbers")}
         </p>
       </aside>
     </>
