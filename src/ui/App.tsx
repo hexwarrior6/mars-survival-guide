@@ -42,6 +42,7 @@ export function App(): JSX.Element {
   const [webglFailed, setWebglFailed] = useState(false);
   const [loopMode, setLoopMode] = useState<LoopMode>("raf");
   const [lang, setLangState] = useState<Lang>(langFromHash);
+  const [sandboxEpoch, setSandboxEpoch] = useState(0);
   const missionRuntime = useRef<MissionRuntime | null>(null);
   const [presetId, setPresetId] = useState<string | null>(null);
   const [missionUi, setMissionUi] = useState({
@@ -173,6 +174,16 @@ export function App(): JSX.Element {
   const setLang = (l: Lang): void => {
     setLangState(l);
     applyLangToUrl(l);
+  };
+  /** Enter the 3D view with a fresh canvas instance: every entry remounts the
+   * Sandbox (new <canvas> element => new WebGL context) and resets the frame
+   * counter so the watchdog judges this mount on its own merits. This is what
+   * fixed "first 3D click never opens without a 2D-detour + retry". */
+  const enter3d = (): void => {
+    fpsStore.current.frames = 0;
+    setSandboxEpoch((e) => e + 1);
+    setWebglFailed(false);
+    setView("3d");
   };
 
   // build the mission runtime whenever a feasible plan (or preset) exists
@@ -405,9 +416,7 @@ export function App(): JSX.Element {
             type="button"
             className="small"
             aria-pressed={show3d}
-            onClick={() => {
-              setView("3d");
-            }}
+            onClick={enter3d}
           >
             {t("3D sandbox")}
           </button>
@@ -449,6 +458,7 @@ export function App(): JSX.Element {
           >
             <div style={{ position: "absolute", inset: 0 }}>
               <Sandbox
+                key={`sandbox-${sandboxEpoch}`}
                 pkg={pkg}
                 result={result}
                 strategy={strategy}
@@ -485,10 +495,7 @@ export function App(): JSX.Element {
             <button
               type="button"
               className="small"
-              onClick={() => {
-                setWebglFailed(false);
-                setView("3d");
-              }}
+              onClick={enter3d}
             >
               {t("Try 3D again")}
             </button>

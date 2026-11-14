@@ -8,20 +8,43 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { advance, Canvas, useFrame, useThree } from "@react-three/fiber";
 
-/** Detects a stalled requestAnimationFrame loop (hidden/background tab) and
- * switches the canvas to a timer-driven render loop so the sandbox keeps
- * rendering (VISUAL-DIRECTION: degradation allowed; interaction stays usable). */
-function RenderLoopGuard({ onStall }: { onStall: () => void }): null {
-  const last = useRef(performance.now());
-  useFrame(() => {
-    last.current = performance.now();
-  });
+/**
+ * Self-driven frame loop. The Canvas runs with frameloop="never"; rendering is
+ * driven from HERE, so a throttled webview (background tab, hidden pane) can
+ * never leave the sandbox with a loop that never starts: rAF drives frames
+ * normally, and a plain interval takes over whenever rAF stalls. advance()
+ * takes a timestamp in seconds and computes useFrame deltas itself.
+ */
+function FrameDriver({ onLoopMode }: { onLoopMode: (m: LoopMode) => void }): null {
   useEffect(() => {
-    const id = window.setInterval(() => {
-      if (performance.now() - last.current > 1500) onStall();
-    }, 400);
-    return () => window.clearInterval(id);
-  }, [onStall]);
+    let raf = 0;
+    let last = performance.now();
+    let mode: LoopMode = "raf";
+    const tick = (now: number): void => {
+      advance(now / 1000);
+      last = now;
+      if (mode !== "raf") {
+        mode = "raf";
+        onLoopMode("raf");
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const iv = window.setInterval(() => {
+      if (performance.now() - last > 800) {
+        advance(performance.now() / 1000);
+        last = performance.now();
+        if (mode !== "timer") {
+          mode = "timer";
+          onLoopMode("timer");
+        }
+      }
+    }, 200);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearInterval(iv);
+    };
+  }, [onLoopMode]);
   return null;
 }
 import { useTexture } from "@react-three/drei";
@@ -359,17 +382,19 @@ function CameraDirector({
 }
 
 function FpsMeter({ fpsStore }: { fpsStore: FpsStore }): null {
-  let acc = 0;
-  let n = 0;
+  // accumulate in refs: component re-renders (HUD tick) would otherwise reset
+  // the closure locals and the fps readout would never settle
+  const acc = useRef(0);
+  const n = useRef(0);
   useFrame((state, delta) => {
-    acc += delta;
-    n++;
-    fpsStore.current.frames++;
-    if (acc >= 0.5) {
-      fpsStore.current.fps = n / acc;
+    acc.current += delta;
+    n.current += 1;
+    fpsStore.current.frames += 1;
+    if (acc.current >= 0.5) {
+      fpsStore.current.fps = n.current / acc.current;
       fpsStore.current.calls = state.gl.info.render.calls;
-      acc = 0;
-      n = 0;
+      acc.current = 0;
+      n.current = 0;
     }
   });
   return null;
@@ -410,37 +435,17 @@ export function Sandbox({
   lang: Lang;
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
-  const [frameloop, setFrameloop] = useState<"always" | "never">("always");
-
-  // timer-driven rendering once rAF stalls (hidden/background webviews)
-  const advanceTimer = useRef<number | null>(null);
-  useEffect(() => {
-    if (frameloop === "never") {
-      onLoopMode("timer");
-      advanceTimer.current = window.setInterval(() => advance(0.2), 200);
-      return () => {
-        if (advanceTimer.current !== null) window.clearInterval(advanceTimer.current);
-      };
-    }
-    onLoopMode("raf");
-    return undefined;
-  }, [frameloop, onLoopMode]);
-
-  const handleStall = useMemo(() => () => setFrameloop("never"), []);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   return (
+    <>
+    <FrameDriver onLoopMode={onLoopMode} />
     <Canvas
+      frameloop="never"
       camera={{ fov: 46, near: 1, far: 30000, position: [0, 3300, 5400] }}
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={(state) => {
         state.gl.toneMappingExposure = 1.45;
-        (window as unknown as Record<string, unknown>).__mg = {
-          camera: state.camera,
-          controls: null,
-          info: state.gl.info,
-          renderer: state.gl,
-        };
       }}
     >
       <color attach="background" args={["#0d0a08"]} />
@@ -470,9 +475,9 @@ export function Sandbox({
         target={[0, 150, 0]}
       />
       <CameraDirector controlsRef={controlsRef} t={t} reducedMotion={reducedMotion} />
-      <RenderLoopGuard onStall={handleStall} />
       <FpsMeter fpsStore={fpsStore} />
     </Canvas>
+    </>
   );
 }
 
