@@ -1,6 +1,9 @@
-/** Console shell: data loading/failure states, layout, strategy & budget wiring,
- * stale-result protection (request id per parameter change), view toggles, FPS
- * display and the 2D cross-check / fallback view. */
+/** Console shell (V1 terrain-first layout): the 3D sandbox or the 2D cross-check
+ * view fills the viewport; brand, toolbar, resource chips, mission/results
+ * cards and the bottom mission bar float above it. Data loading/failure states,
+ * strategy & budget wiring, stale-result protection (request id per parameter
+ * change), FPS display, watchdog and the 2D fallback are unchanged from the
+ * accepted phase-3/4 behavior. */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
@@ -12,8 +15,8 @@ import type { RouteRequest, RouteResult, Strategy } from "../domain/types.js";
 import { Sandbox, flyToSite, makeFpsStore, type FpsStore, type LoopMode } from "./Sandbox.js";
 import { PlanView2D } from "./PlanView2D.js";
 import { WebglErrorBoundary } from "./WebglErrorBoundary.js";
-import { MissionPanel, ResultsPanel, SourcesDrawer } from "./panels.js";
-import { HudStrip, type HudStripState } from "./HudStrip.js";
+import { LegendDrawer, MissionPanel, ResultsPanel, SourcesDrawer } from "./panels.js";
+import { BottomBar, ResourceChip } from "./BottomBar.js";
 import { buildMissionTimeline, missionStateAt, firstReturnForcingEvent, planEmergencyReturn } from "../simulation/engine.js";
 import { makeRuntime, type HudMirror, type MissionRuntime } from "../simulation/runtime.js";
 import { stepMissionRuntime } from "../ui/MissionLayer.js";
@@ -38,6 +41,7 @@ export function App(): JSX.Element {
   const [initialResources, setInitialResources] = useState(100);
   const [view, setView] = useState<"3d" | "2d">("3d");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [webglFailed, setWebglFailed] = useState(false);
   const [loopMode, setLoopMode] = useState<LoopMode>("raf");
@@ -148,14 +152,15 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     if (load.kind === "ready" && selectedSiteId !== null) {
-      flyToSite(load.pkg, selectedSiteId, false);
+      // two-stage fly: focus the site, then pull back to frame the round trip;
+      // planning changes (strategy/sliders) intentionally do NOT re-fly
+      flyToSite(load.pkg, selectedSiteId, false, planning?.result ?? null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load, selectedSiteId]);
 
-  const pkgEarly = load.kind === "ready" ? load.pkg : null;
-  const result = planning?.result ?? null;
   const pkg = load.kind === "ready" ? load.pkg : null;
-  void pkgEarly;
+  const result = planning?.result ?? null;
   const closureMask = useMemo(() => {
     if (load.kind !== "ready") return null;
     const ev = load.pkg.scenario.events.find((e) => e.type === "area_closure");
@@ -260,15 +265,12 @@ export function App(): JSX.Element {
     return () => clearInterval(timer);
   }, [view, hudMirror]);
 
-
   if (load.kind === "loading") {
     return (
       <div className="console">
-        <div className="stage" style={{ gridArea: "topbar" }}>
-          <div className="loading-overlay">
-            <div className="spinner" aria-hidden="true" />
-            <p>{t("Loading frozen Jezero data package…")}</p>
-          </div>
+        <div className="loading-overlay">
+          <div className="spinner" aria-hidden="true" />
+          <p>{t("Loading frozen Jezero data package…")}</p>
         </div>
       </div>
     );
@@ -276,32 +278,32 @@ export function App(): JSX.Element {
   if (load.kind === "error") {
     return (
       <div className="console">
-        <div className="stage" style={{ gridArea: "topbar" }}>
-          <div className="loading-overlay">
-            <p>{t("Data package failed to load: {msg}", { msg: load.message })}</p>
-            <button type="button" onClick={() => setReloadCounter((c) => c + 1)}>
-              {t("Retry")}
-            </button>
-          </div>
+        <div className="loading-overlay">
+          <p>{t("Data package failed to load: {msg}", { msg: load.message })}</p>
+          <button type="button" onClick={() => setReloadCounter((c) => c + 1)}>
+            {t("Retry")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (pkg === null) {
+    return (
+      <div className="console">
+        <div className="loading-overlay">
+          <div className="spinner" aria-hidden="true" />
+          <p>{t("Loading frozen Jezero data package…")}</p>
         </div>
       </div>
     );
   }
 
-  if (pkg === null) {
-    return (
-      <div className="console">
-        <div className="stage" style={{ gridArea: "topbar" }}>
-          <div className="loading-overlay">
-            <div className="spinner" aria-hidden="true" />
-            <p>{t("Loading frozen Jezero data package…")}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
   const show3d = view === "3d" && !webglFailed;
   const totalMinutes = missionRuntime.current?.timeline.totalMinutes ?? 0;
+  const tl = missionRuntime.current?.timeline ?? null;
+  const timelineSegments = tl
+    ? { outboundMin: tl.outboundTotalMin, stopMin: tl.stopMinutes, returnMin: tl.returnTotalMin }
+    : null;
 
   const startMission = (): void => {
     const rt = missionRuntime.current;
@@ -372,46 +374,75 @@ export function App(): JSX.Element {
 
   return (
     <LangContext.Provider value={{ lang, setLang, t }}>
-    <div className="console">
-      <header className="topbar">
-        <span className="brand">MARS SURVIVAL GUIDE</span>
-        <span className="brand-sub">{t("JEZERO / MISSION PLANNER · PHASE 4")}</span>
-        <span className="badge-sim">{t("SIMULATED SCENARIO · REAL TERRAIN DATA")}</span>
-        <span className="spacer" />
-        <button
-          type="button"
-          className="small"
-          aria-pressed={lang === "zh"}
-          onClick={() => {
-            setLang(lang === "zh" ? "en" : "zh");
-          }}
-        >
-          {lang === "zh" ? "EN" : "中文"}
-        </button>
-        <button
-          type="button"
-          className="small"
-          onClick={() => {
-            setDrawerOpen(true);
-          }}
-        >
-          {t("Sources & assumptions")}
-        </button>
-        <span className="fps" aria-live="off">
-          {fpsStore.current.fps > 0
-            ? t(
-                loopMode === "raf"
-                  ? "{fps} fps · {calls} draw calls"
-                  : "{fps} frames/s (timer mode · background tab) · {calls} draw calls",
-                { fps: fpsStore.current.fps.toFixed(0), calls: fpsStore.current.calls },
-              )
-            : t("measuring fps…")}
-          <span hidden>{fpsTick}</span>
-        </span>
-      </header>
+      <div className="console">
+        <section className="stage" aria-label="Terrain stage">
+          {/* full-bleed canvas layer + in-canvas labels */}
+          <div className="overlay-labels" ref={overlayRef} style={{ display: show3d ? "block" : "none" }} />
+          {show3d ? (
+            <WebglErrorBoundary
+              onFallback={() => {
+                setWebglFailed(true);
+                setView("2d");
+              }}
+            >
+              <div className="canvas-holder">
+                <Sandbox
+                  key={`sandbox-${sandboxEpoch}`}
+                  pkg={pkg}
+                  result={result}
+                  strategy={strategy}
+                  selectedSiteId={selectedSiteId}
+                  reducedMotion={reducedMotion}
+                  fpsStore={fpsStore}
+                  overlayRef={overlayRef}
+                  onLoopMode={setLoopMode}
+                  runtimeRef={missionRuntime}
+                  hudRef={hudMirror}
+                  lang={lang}
+                />
+              </div>
+            </WebglErrorBoundary>
+          ) : (
+            <div className="canvas-holder">
+              <PlanView2D
+                pkg={pkg}
+                result={result}
+                strategy={strategy}
+                selectedSiteId={selectedSiteId}
+                runtimeRef={missionRuntime}
+                redrawKey={fpsTick}
+                astronaut={hudMirror.current.astronaut !== null ? {
+                  xM: hudMirror.current.astronaut.x + worldTransform(pkg.terrain).halfWidthM,
+                  yM: worldTransform(pkg.terrain).halfHeightM - hudMirror.current.astronaut.z,
+                } : null}
+              />
+            </div>
+          )}
+          {webglFailed && view === "2d" ? (
+            <div className="state-banner warn fallback-banner">
+              {t("3D rendering is unavailable right now — showing the 2D plan view. ")}{" "}
+              <button
+                type="button"
+                className="small"
+                onClick={enter3d}
+              >
+                {t("Try 3D again")}
+              </button>
+            </div>
+          ) : null}
+        </section>
 
-      <section className="stage" aria-label="Terrain stage">
-        <div className="view-toggle">
+        {/* floating overlay UI: positioned over the stage on desktop, stacked
+            below it on narrow screens (CSS only — same DOM) */}
+        <div className="brand-block">
+          <div className="brand">MARS SURVIVAL GUIDE</div>
+          <div className="brand-sub">
+            {t("JEZERO / EXPEDITION 01")}
+            <span className="badge-sim">{t("SIMULATED SCENARIO · REAL TERRAIN DATA")}</span>
+          </div>
+        </div>
+
+        <div className="toolbar" role="toolbar" aria-label="View and data controls">
           <button
             type="button"
             className="small"
@@ -440,157 +471,113 @@ export function App(): JSX.Element {
           >
             {t("Reset view")}
           </button>
-        </div>
-        <div
-          className="overlay-labels"
-          ref={overlayRef}
-          style={{ display: show3d ? "block" : "none" }}
-        />
-        {/* 2D-view mission driver: the 3D frame loop is not mounted here */}
-        {!show3d && missionRuntime.current !== null && missionRuntime.current.running && !missionRuntime.current.paused
-          ? null : null}
-        {show3d ? (
-          <WebglErrorBoundary
-            onFallback={() => {
-              setWebglFailed(true);
-              setView("2d");
+          <span className="toolbar-sep" aria-hidden="true" />
+          <button
+            type="button"
+            className="small"
+            aria-pressed={lang === "zh"}
+            onClick={() => {
+              setLang(lang === "zh" ? "en" : "zh");
             }}
           >
-            <div style={{ position: "absolute", inset: 0 }}>
-              <Sandbox
-                key={`sandbox-${sandboxEpoch}`}
-                pkg={pkg}
-                result={result}
-                strategy={strategy}
-                selectedSiteId={selectedSiteId}
-                reducedMotion={reducedMotion}
-                fpsStore={fpsStore}
-                overlayRef={overlayRef}
-                onLoopMode={setLoopMode}
-                runtimeRef={missionRuntime}
-                hudRef={hudMirror}
-                lang={lang}
-              />
-            </div>
-          </WebglErrorBoundary>
-        ) : (
-          <div style={{ position: "absolute", inset: 0 }}>
-            <PlanView2D
-              pkg={pkg}
-              result={result}
-              strategy={strategy}
-              selectedSiteId={selectedSiteId}
-              runtimeRef={missionRuntime}
-              redrawKey={fpsTick}
-              astronaut={hudMirror.current.astronaut !== null ? {
-                xM: hudMirror.current.astronaut.x + worldTransform(pkg.terrain).halfWidthM,
-                yM: worldTransform(pkg.terrain).halfHeightM - hudMirror.current.astronaut.z,
-              } : null}
-            />
-          </div>
-        )}
-        {webglFailed && view === "2d" ? (
-          <div className="state-banner warn" style={{ position: "absolute", bottom: 10, left: 10, right: 10 }}>
-            {t("3D rendering is unavailable right now — showing the 2D plan view. ")}{" "}
-            <button
-              type="button"
-              className="small"
-              onClick={enter3d}
-            >
-              {t("Try 3D again")}
-            </button>
-          </div>
-        ) : null}
-      </section>
+            {lang === "zh" ? "EN" : "中文"}
+          </button>
+          <button
+            type="button"
+            className="small"
+            onClick={() => {
+              setDrawerOpen(true);
+            }}
+          >
+            {t("Sources & assumptions")}
+          </button>
+        </div>
 
-      <MissionPanel
-        pkg={pkg}
-        selectedSiteId={selectedSiteId}
-        strategy={strategy}
-        reserveFraction={reserveFraction}
-        mission={{
-          phase: missionUi.phase,
-          running: missionUi.running,
-          paused: missionUi.paused,
-          started: missionUi.started,
-          feasible: result?.status === "feasible",
-          speed: missionUi.speed,
-          closureFired: missionUi.closureFired,
-        }}
-        presetId={presetId}
-        onPreset={(id) => {
-          setPresetId(id);
-          const p = PRESETS.find((x) => x.id === id);
-          if (p) {
-            setSelectedSiteId(p.siteId);
-          }
-        }}
-        onSelectSite={(id) => {
-          setSelectedSiteId(id);
-          // camera handled by the effect above
-        }}
-        onStrategy={setStrategy}
-        onReserve={setReserveFraction}
-        initialResources={initialResources}
-        onInitialResources={setInitialResources}
-        onStart={startMission}
-        onPause={pauseMission}
-        onResume={resumeMission}
-        onResetMission={resetMission}
-        onTriggerBattery={triggerBattery}
-        onTriggerClosure={triggerClosure}
-        onSpeed={setSpeed}
-      />
-
-      <ResultsPanel pkg={pkg} result={result} strategy={strategy} />
-
-      <HudStrip
-        hud={{
-          phase: missionUi.phase,
-          legLabel: "-",
-          simMinutes: missionUi.simMinutes,
-          totalMinutes,
-          oxygen: missionUi.oxygen,
-          battery: missionUi.battery,
-          initial: initialResources,
-          reserveFraction: reserveFraction,
-          events: missionUi.events,
-          emergencyActive: missionUi.emergencyActive,
-          running: missionUi.running,
-          paused: missionUi.paused,
-          started: missionUi.started,
-        }}
-      />
-
-      <footer className="panel legend">
-        <div className="legend-strip">
-          <span>
-            <span className="swatch" style={{ background: "var(--route-outbound)" }} />
-            {t("outbound route")}
-          </span>
-          <span>
-            <span className="swatch" style={{ background: "var(--route-return)" }} />
-            {t("return route (recomputed)")}
-          </span>
-          <span>
-            <span className="swatch" style={{ background: "var(--route-blocked)" }} />
-            {t("blocked area (simulated closure)")}
-          </span>
-          <span className="north">N ↑</span>
-          <span>{t("controls: left-drag pan · right-drag rotate/pitch · wheel zoom")}</span>
-          <span>{t("grid 20 m/cell · vertical relief ×3 display only")}</span>
-          <span>{t("units: meters · minutes · simulated 0–100 budget units")}</span>
-          <span className="units">
-            {t("terrain: MRO CTX DEM/ortho mosaic (Mangold et al. 2021) · sources: {n} records · v{v}", {
-              n: pkg.sources.sources.length,
-              v: pkg.region.schemaVersion,
-            })}
+        <div className="chips-row">
+          <ResourceChip
+            label="OXYGEN"
+            value={missionUi.oxygen}
+            initial={initialResources}
+            reserveFraction={reserveFraction}
+          />
+          <ResourceChip
+            label="BATTERY"
+            value={missionUi.battery}
+            initial={initialResources}
+            reserveFraction={reserveFraction}
+          />
+          <span className="fps" aria-live="off">
+            {fpsStore.current.fps > 0
+              ? t(
+                  loopMode === "raf"
+                    ? "{fps} fps · {calls} draw calls"
+                    : "{fps} frames/s (timer mode · background tab) · {calls} draw calls",
+                  { fps: fpsStore.current.fps.toFixed(0), calls: fpsStore.current.calls },
+                )
+              : t("measuring fps…")}
+            <span hidden>{fpsTick}</span>
           </span>
         </div>
-      </footer>
 
-      <SourcesDrawer pkg={pkg} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
-    </div>
+        <MissionPanel
+          pkg={pkg}
+          selectedSiteId={selectedSiteId}
+          strategy={strategy}
+          reserveFraction={reserveFraction}
+          mission={{
+            phase: missionUi.phase,
+            running: missionUi.running,
+            paused: missionUi.paused,
+            started: missionUi.started,
+            feasible: result?.status === "feasible",
+            speed: missionUi.speed,
+            closureFired: missionUi.closureFired,
+          }}
+          presetId={presetId}
+          onPreset={(id) => {
+            setPresetId(id);
+            const p = PRESETS.find((x) => x.id === id);
+            if (p) {
+              setSelectedSiteId(p.siteId);
+            }
+          }}
+          onSelectSite={(id) => {
+            setSelectedSiteId(id);
+            // camera handled by the effect above
+          }}
+          onStrategy={setStrategy}
+          onReserve={setReserveFraction}
+          initialResources={initialResources}
+          onInitialResources={setInitialResources}
+          onStart={startMission}
+          onPause={pauseMission}
+          onResume={resumeMission}
+          onResetMission={resetMission}
+          onTriggerBattery={triggerBattery}
+          onTriggerClosure={triggerClosure}
+          onSpeed={setSpeed}
+        />
+
+        <ResultsPanel pkg={pkg} result={result} strategy={strategy} />
+
+        <BottomBar
+          bar={{
+            phase: missionUi.phase,
+            simMinutes: missionUi.simMinutes,
+            totalMinutes,
+            events: missionUi.events,
+            emergencyActive: missionUi.emergencyActive,
+            running: missionUi.running,
+            paused: missionUi.paused,
+            started: missionUi.started,
+          }}
+          segments={timelineSegments}
+          onOpenLegend={() => setLegendOpen(true)}
+        />
+
+        <LegendDrawer pkg={pkg} open={legendOpen} onClose={() => setLegendOpen(false)} />
+        <SourcesDrawer pkg={pkg} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      </div>
     </LangContext.Provider>
   );
 }

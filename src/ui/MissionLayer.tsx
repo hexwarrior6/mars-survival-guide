@@ -81,6 +81,7 @@ export function MissionLayer({
   closureActive: boolean;
 }): JSX.Element | null {
   const groupRef = useRef<THREE.Group | null>(null);
+  const markerRef = useRef<THREE.Group | null>(null);
 
   useFrame((_, delta) => {
     const rt = runtimeRef.current;
@@ -90,6 +91,16 @@ export function MissionLayer({
     if (groupRef.current !== null && hud.astronaut !== null) {
       groupRef.current.position.set(hud.astronaut.x, hud.astronaut.y + 1.2, hud.astronaut.z);
       groupRef.current.visible = true;
+    }
+    // the position marker rides the same exact interpolated position; the
+    // astronaut model itself is true 1.7 m scale (invisible beyond ~2 km), so
+    // a clearly-labelled enlarged marker makes the walk readable at overview
+    if (markerRef.current !== null && hud.astronaut !== null) {
+      markerRef.current.position.set(hud.astronaut.x, hud.astronaut.y, hud.astronaut.z);
+      markerRef.current.visible = true;
+    }
+    if (markerRef.current !== null && hud.astronaut === null) {
+      markerRef.current.visible = false;
     }
   });
 
@@ -133,6 +144,19 @@ export function MissionLayer({
         <mesh position={[0, 1.42, 0]}>
           <sphereGeometry args={[0.26, 12, 10]} />
           <meshStandardMaterial color="#d8d2c6" roughness={0.35} metalness={0.3} />
+        </mesh>
+      </group>
+      {/* enlarged position marker: slim light column + head, ~140 m tall so the
+          walk reads at overview distance. Display element, called out in the
+          legend — not a real object and not to scale. */}
+      <group ref={markerRef} visible={false} name="task-marker">
+        <mesh position={[0, 70, 0]}>
+          <cylinderGeometry args={[1.6, 1.6, 140, 6]} />
+          <meshBasicMaterial color="#ffd9a0" transparent opacity={0.55} depthWrite={false} />
+        </mesh>
+        <mesh position={[0, 146, 0]}>
+          <sphereGeometry args={[10, 12, 10]} />
+          <meshBasicMaterial color="#fff3dd" />
         </mesh>
       </group>
       <ClosureLine points={closurePoints} />

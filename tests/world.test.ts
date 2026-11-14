@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { Vector3 } from "three";
 import { makeGrid } from "./helpers.js";
 import {
   RELIEF_SCALE,
@@ -14,6 +15,7 @@ import {
   sampleElevationM,
   cellWorldPosition,
   routePolyline,
+  routePose,
   sitePose,
   overviewPose,
 } from "../src/domain/world.js";
@@ -101,5 +103,53 @@ describe("routes and poses", () => {
     expect(d).toBeLessThanOrEqual(2400);
     const ov = overviewPose(t, 300);
     expect(Number.isFinite(ov.position.y)).toBe(true);
+  });
+
+  it("route pose frames the whole route inside the vertical field of view", () => {
+    const grid = makeGrid({ width: 4, height: 4, cellSizeM: 20, elevations: 100 });
+    const t = worldTransform(grid);
+    // a long L-shaped route spanning the region diagonal
+    const pts = [
+      { x: -2000, y: 300, z: -2000 },
+      { x: 0, y: 150, z: 0 },
+      { x: 2000, y: 450, z: 1800 },
+    ];
+    const pose = routePose(t, pts);
+    // target is the bounding-box center
+    expect(pose.target.x).toBeCloseTo(0, 6);
+    expect(pose.target.y).toBeCloseTo(300, 6);
+    expect(pose.target.z).toBeCloseTo(-100, 6);
+    // every route point sits within the camera's vertical half-fov (23°)
+    const viewDir = new Vector3(
+      pose.target.x - pose.position.x,
+      pose.target.y - pose.position.y,
+      pose.target.z - pose.position.z,
+    );
+    const halfFov = (23 * Math.PI) / 180;
+    for (const p of pts) {
+      const v = new Vector3(p.x - pose.position.x, p.y - pose.position.y, p.z - pose.position.z);
+      const angle = viewDir.angleTo(v);
+      expect(angle).toBeLessThanOrEqual(halfFov);
+    }
+    // stays inside the OrbitControls distance range
+    const dist = viewDir.length();
+    expect(dist).toBeLessThanOrEqual(8800);
+    expect(dist).toBeGreaterThan(1000);
+  });
+
+  it("route pose clamps tiny routes to a minimum and huge routes to the max distance", () => {
+    const grid = makeGrid({ width: 4, height: 4, cellSizeM: 20, elevations: 100 });
+    const t = worldTransform(grid);
+    const tiny = routePose(t, [{ x: 0, y: 0, z: 0 }, { x: 10, y: 0, z: 0 }]);
+    const huge = routePose(t, [
+      { x: -5000, y: 0, z: -5000 },
+      { x: 5000, y: 900, z: 5000 },
+    ]);
+    const d = (p: typeof tiny): number =>
+      Math.hypot(p.position.x - p.target.x, p.position.y - p.target.y, p.position.z - p.target.z);
+    // tiny route still keeps a sane minimum working distance
+    expect(d(tiny)).toBeGreaterThanOrEqual(2000 * 0.8);
+    // huge route clamps to the OrbitControls max distance
+    expect(d(huge)).toBeLessThanOrEqual(8800 * 1.01);
   });
 });

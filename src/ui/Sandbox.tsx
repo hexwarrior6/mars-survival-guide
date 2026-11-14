@@ -57,13 +57,18 @@ import type { MissionRuntime } from "../simulation/runtime.js";
 import type { HudMirror } from "../simulation/runtime.js";
 import {
   cellWorldPosition,
+  introPose,
   overviewPose,
   routePolyline,
+  routePose,
   sitePose,
   worldTransform,
+  worldXZ,
+  type CameraPose,
   type WorldTransform,
  worldY, sampleElevationM } from "../domain/world.js";
 import { commandCamera, readCameraCommand } from "./cameraBus.js";
+import { MissionLayer } from "./MissionLayer.js";
 import type { Lang } from "./i18n.js";
 
 const LIFT_M = 1.5; // routes render 1.5 m above ground (display only)
@@ -108,7 +113,7 @@ function TerrainMesh({ terrain, t }: { terrain: TerrainGrid; t: WorldTransform }
   }, [terrain, t]);
   return (
     <mesh geometry={geometry} name="terrain">
-      <meshStandardMaterial map={texture} color="#e0a476" roughness={0.96} metalness={0} />
+      <meshStandardMaterial map={texture} color="#e2a877" roughness={0.93} metalness={0} />
     </mesh>
   );
 }
@@ -155,6 +160,23 @@ function RouteLines({
         : null,
     [candidate, terrain, t],
   );
+  // declared before any early return: hooks must run in the same order whether
+  // or not a plan is currently displayed (fixed V1 rules-of-hooks violation)
+  const emergencyPoints = useMemo(() => {
+    const plan = runtimeRef.current?.emergency?.plan ?? null;
+    if (!candidate || plan === null) return null;
+    const cs = terrain.cellSizeM;
+    const wx = plan.startXM - (terrain.width * cs) / 2;
+    const wz = (terrain.height * cs) / 2 - plan.startYM;
+    const wy = worldY(t, sampleElevationM(terrain, plan.startXM, plan.startYM, 0)) + 1.5 * 3;
+    const pts = [new THREE.Vector3(wx, wy, wz)];
+    for (const [r, c] of plan.cells) {
+      const p = cellWorldPosition(terrain, t, r, c, 1.5);
+      pts.push(new THREE.Vector3(p.x, p.y, p.z));
+    }
+    return pts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runtimeRef.current?.emergency?.forId, terrain, t, candidate]);
 
   const outRef = useRef<Line2Like | null>(null);
   const headRef = useRef<THREE.Mesh | null>(null);
@@ -186,20 +208,6 @@ function RouteLines({
   });
 
   if (!candidate || !outbound || !ret) return null;
-  const emergencyPoints = useMemo(() => {
-    const plan = runtimeRef.current?.emergency?.plan ?? null;
-    if (plan === null) return null;
-    const cs = terrain.cellSizeM;
-    const wx = plan.startXM - (terrain.width * cs) / 2;
-    const wz = (terrain.height * cs) / 2 - plan.startYM;
-    const wy = worldY(t, sampleElevationM(terrain, plan.startXM, plan.startYM, 0)) + 1.5 * 3;
-    const pts = [new THREE.Vector3(wx, wy, wz)];
-    for (const [r, c] of plan.cells) {
-      const p = cellWorldPosition(terrain, t, r, c, 1.5);
-      pts.push(new THREE.Vector3(p.x, p.y, p.z));
-    }
-    return pts;
-  }, [runtimeRef.current?.emergency?.forId, terrain, t]);
   return (
     <group name="routes">
       <Line
@@ -228,6 +236,35 @@ function RouteLines({
       </mesh>
     </group>
   );
+}
+
+/** Terrain-hugging selection ring around the anchored site position (display
+ * only: 70 m radius sampled from the same DEM, not a measurement of anything). */
+function SelectionRing({
+  terrain,
+  t,
+  xM,
+  yM,
+}: {
+  terrain: TerrainGrid;
+  t: WorldTransform;
+  xM: number;
+  yM: number;
+}): JSX.Element {
+  const pts = useMemo(() => {
+    const R = 70;
+    const arr: THREE.Vector3[] = [];
+    for (let i = 0; i <= 64; i++) {
+      const a = (i / 64) * Math.PI * 2;
+      const px = xM + Math.cos(a) * R;
+      const py = yM + Math.sin(a) * R;
+      const elev = sampleElevationM(terrain, px, py, t.datumM);
+      const [wx, wz] = worldXZ(t, px, py);
+      arr.push(new THREE.Vector3(wx, worldY(t, elev) + 6, wz));
+    }
+    return arr;
+  }, [terrain, t, xM, yM]);
+  return <Line points={pts} color="#ffb45e" lineWidth={2.5} />;
 }
 
 function Markers({
@@ -269,11 +306,11 @@ function Markers({
         return (
           <group key={site.id} position={[pos.x, pos.y, pos.z]}>
             <mesh position={[0, 16, 0]}>
-              <sphereGeometry args={[selected ? 14 : 9, 20, 14]} />
+              <sphereGeometry args={[selected ? 16 : 10, 20, 14]} />
               <meshBasicMaterial color={selected ? "#ffb45e" : "#f5ead9"} />
             </mesh>
             <mesh position={[0, 6, 0]}>
-              <cylinderGeometry args={[0.9, 0.9, 12, 8]} />
+              <cylinderGeometry args={[0.9, 0.9, 14, 8]} />
               <meshBasicMaterial color={selected ? "#ffb45e" : "#f5ead9"} />
             </mesh>
             <Html
@@ -289,6 +326,18 @@ function Markers({
           </group>
         );
       })}
+      {/* selection ring lives at the markers-group level: its points are WORLD
+          coordinates (site xM/yM -> worldXZ/worldY), so it must NOT sit inside
+          a group already translated to the marker position (V1 bug: double
+          translation sent the ring into the sky). Center = the site's nominal
+          coordinates from sites.json — same point the label anchors to. */}
+      {(() => {
+        const selectedSite = pkg.sites.find((s) => s.id === selectedSiteId) ?? null;
+        if (selectedSite === null) return null;
+        return (
+          <SelectionRing terrain={pkg.terrain} t={t} xM={selectedSite.xM} yM={selectedSite.yM} />
+        );
+      })()}
       <group name="base" position={[basePos.x, basePos.y, basePos.z]}>
         <mesh position={[0, 6, 0]}>
           <sphereGeometry args={[11, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
@@ -297,6 +346,15 @@ function Markers({
         <mesh position={[16, 1.6, 6]}>
           <boxGeometry args={[12, 3.2, 6]} />
           <meshStandardMaterial color="#cfc8ba" roughness={0.7} metalness={0.1} />
+        </mesh>
+        {/* small flag as a base landmark (marker geometry, not a measurement) */}
+        <mesh position={[10, 3.5, -8]}>
+          <cylinderGeometry args={[0.14, 0.14, 7, 6]} />
+          <meshStandardMaterial color="#cfc8ba" roughness={0.6} />
+        </mesh>
+        <mesh position={[11.4, 5.8, -8]}>
+          <boxGeometry args={[2.6, 1.6, 0.08]} />
+          <meshStandardMaterial color="#ffb45e" roughness={0.6} />
         </mesh>
         <group position={[-14, 0, 8]}>
           <mesh position={[0, 0.85, 0]}>
@@ -309,7 +367,7 @@ function Markers({
           </mesh>
         </group>
         <Html
-          position={[0, 36, 0]}
+          position={[34, 42, 0]}
           center
           portal={overlayRef as never}
           zIndexRange={[20, 0]}
@@ -338,10 +396,15 @@ function CameraDirector({
     toP: THREE.Vector3;
     toT: THREE.Vector3;
     t: number;
+    durationSec: number;
     instant: boolean;
+    then: { pose: CameraPose; durationMs?: number } | null;
   } | null>(null);
 
-  // fly to the region overview once the controls exist
+  // opening shot: mount at the high/far intro pose, then ease down to the
+  // overview over ~2.5 s. Any user drag cancels the running move — this is
+  // also the "skip intro" gesture. reduced-motion mounts straight at the
+  // overview with no move.
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
@@ -352,11 +415,25 @@ function CameraDirector({
       MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.ROTATE,
     };
-    const pose = overviewPose(t, 400);
+    const pose = reducedMotion ? overviewPose(t, 400) : introPose(t);
     camera.position.set(pose.position.x, pose.position.y, pose.position.z);
     controls.target.set(pose.target.x, pose.target.y, pose.target.z);
     controls.update();
-    lastSeq.current = 0; // the initial mount already shows the overview
+    lastSeq.current = 0;
+    const cancelOnDrag = (): void => {
+      transition.current = null;
+    };
+    controls.addEventListener("start", cancelOnDrag);
+    let introTimer = 0;
+    if (!reducedMotion) {
+      introTimer = window.setTimeout(() => {
+        commandCamera(overviewPose(t, 400), false, 2500);
+      }, 350);
+    }
+    return () => {
+      controls.removeEventListener("start", cancelOnDrag);
+      window.clearTimeout(introTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -366,23 +443,34 @@ function CameraDirector({
     const cmd = readCameraCommand();
     if (cmd && cmd.seq !== lastSeq.current) {
       lastSeq.current = cmd.seq;
+      const instant = cmd.instant || reducedMotion;
       transition.current = {
         fromP: controls.object.position.clone(),
         fromT: controls.target.clone(),
         toP: new THREE.Vector3(cmd.pose.position.x, cmd.pose.position.y, cmd.pose.position.z),
         toT: new THREE.Vector3(cmd.pose.target.x, cmd.pose.target.y, cmd.pose.target.z),
-        t: cmd.instant || reducedMotion ? 1 : 0,
-        instant: cmd.instant || reducedMotion,
+        t: instant ? 1 : 0,
+        durationSec: (cmd.durationMs ?? 1250) / 1000,
+        instant,
+        then: cmd.then ?? null,
       };
     }
     const tr = transition.current;
     if (tr === null) return;
-    tr.t = tr.instant || reducedMotion ? 1 : Math.min(1, tr.t + delta / 1.25);
+    tr.t = Math.min(1, tr.t + delta / tr.durationSec);
     const k = EASE(tr.t);
     controls.object.position.lerpVectors(tr.fromP, tr.toP, k);
     controls.target.lerpVectors(tr.fromT, tr.toT, k);
     controls.update();
-    if (tr.t >= 1) transition.current = null;
+    if (tr.t >= 1) {
+      const follow = tr.then;
+      const wasInstant = tr.instant;
+      transition.current = null;
+      // two-stage fly: once the focus leg lands, pull back to frame the whole
+      // route. A user grab cleared transition.current above and this never
+      // runs — the camera is never yanked away from the user.
+      if (follow) commandCamera(follow.pose, wasInstant || reducedMotion, follow.durationMs);
+    }
   });
   return null;
 }
@@ -442,22 +530,28 @@ export function Sandbox({
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  // closure rectangle shows once the scheduled closure event has actually fired
+  const rtNow = runtimeRef.current;
+  const closureActive = !!(rtNow?.schedule.closure && rtNow.T >= rtNow.schedule.closure.atSimMinutes);
   return (
     <>
     <FrameDriver onLoopMode={onLoopMode} />
     <Canvas
       frameloop="never"
-      camera={{ fov: 46, near: 1, far: 30000, position: [0, 3300, 5400] }}
+      camera={{ fov: 46, near: 1, far: 30000, position: [1500, 7600, 8300] }}
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={(state) => {
-        state.gl.toneMappingExposure = 1.45;
+        state.gl.toneMappingExposure = 1.5;
       }}
     >
       <color attach="background" args={["#0d0a08"]} />
-      <hemisphereLight args={["#d9a06b", "#4a3320", 0.85]} />
-      <ambientLight intensity={0.32} />
-      <directionalLight position={[-3000, 4600, -3000]} intensity={3.0} color="#ffe3c4" />
+      <hemisphereLight args={["#c9905e", "#241708", 0.7]} />
+      <ambientLight intensity={0.26} />
+      {/* key light: azimuth matches the DEM hillshade convention (NW) */}
+      <directionalLight position={[-2800, 5600, -2600]} intensity={2.8} color="#ffdfc0" />
+      {/* warm display-only fill from the opposite quarter to lift the shadows */}
+      <directionalLight position={[3200, 1600, 3400]} intensity={0.4} color="#b98a5e" />
       <Suspense fallback={null}>
         <TerrainMesh terrain={pkg.terrain} t={t} />
       </Suspense>
@@ -469,6 +563,15 @@ export function Sandbox({
         strategy={strategy}
         reducedMotion={reducedMotion}
         runtimeRef={runtimeRef}
+      />
+      {/* mission layer: astronaut walk + closure rectangle + position marker.
+          Was never mounted before (phase-4 gap surfaced by user review). */}
+      <MissionLayer
+        runtimeRef={runtimeRef}
+        hudRef={hudRef}
+        pkg={pkg}
+        t={t}
+        closureActive={closureActive}
       />
       <OrbitControls
         ref={controlsRef}
@@ -487,8 +590,16 @@ export function Sandbox({
   );
 }
 
-/** Command the camera from the UI: fly to a site (or back to the overview). */
-export function flyToSite(pkg: LoadedPackage, siteId: string | null, instant = false): void {
+/** Command the camera from the UI: fly to a site (or back to the overview).
+ * With a feasible `result`, the fly is two-stage — first focus the site, then
+ * pull back to frame the WHOLE round trip. reduced-motion (instant) jumps
+ * straight to the final framing; grabbing the camera mid-fly cancels the pull. */
+export function flyToSite(
+  pkg: LoadedPackage,
+  siteId: string | null,
+  instant = false,
+  result?: RouteResult | null,
+): void {
   const t = worldTransform(pkg.terrain);
   if (!siteId) {
     commandCamera(overviewPose(t, 400), instant);
@@ -504,5 +615,22 @@ export function flyToSite(pkg: LoadedPackage, siteId: string | null, instant = f
     pkg.scenario.base.rowCol[1],
     0,
   );
-  commandCamera(sitePose(t, target, base), instant);
+  const candidate =
+    result && result.status === "feasible"
+      ? result.recommended ?? result.candidates[0] ?? null
+      : null;
+  if (!candidate) {
+    commandCamera(sitePose(t, target, base), instant);
+    return;
+  }
+  const cells = [...candidate.outbound.pathCells, ...candidate.returnRoute.pathCells];
+  const framing = routePose(t, routePolyline(pkg.terrain, t, cells, 0));
+  if (instant) {
+    commandCamera(framing, true);
+    return;
+  }
+  commandCamera(sitePose(t, target, base), false, undefined, {
+    pose: framing,
+    durationMs: 1500,
+  });
 }

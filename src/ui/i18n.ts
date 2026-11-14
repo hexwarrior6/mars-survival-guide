@@ -24,8 +24,8 @@ export function applyLangToUrl(lang: Lang): void {
 }
 
 const ZH: Record<string, string> = {
-  // top bar
-  "JEZERO / MISSION PLANNER · PHASE 4": "耶泽罗 / 任务规划台 · 第 4 阶段",
+  // brand block
+  "JEZERO / EXPEDITION 01": "耶泽罗 / 远征 01",
   "SIMULATED SCENARIO · REAL TERRAIN DATA": "模拟情景 · 真实地形数据",
   "Sources & assumptions": "来源与假设",
   "measuring fps…": "正在测量帧率…",
@@ -43,8 +43,15 @@ const ZH: Record<string, string> = {
   "3D rendering is unavailable right now — showing the 2D plan view. ":
     "3D 渲染暂不可用 — 已切换到 2D 平面视图。",
   "Try 3D again": "重试 3D",
-  // mission panel
+  // mission card
   "Plan your Marswalk": "规划你的火星行走",
+  "Collapse": "收起",
+  "Expand": "展开",
+  "Mission card": "任务卡",
+  "no target selected": "未选择目标",
+  "Science targets": "科学目标",
+  "Route strategy": "路线策略",
+  "Budget settings": "预算参数",
   "stop {min} min · position ±{unc} m · landform-anchored":
     "停留 {min} 分钟 · 位置 ±{unc} 米 · 地貌锚定",
   "Shortest": "最短路径",
@@ -73,7 +80,7 @@ const ZH: Record<string, string> = {
   "scripted simulated replay · resets the mission": "脚本化模拟重放 · 会重置任务",
   "All events and scenarios are simulated replays keyed to mission minutes (deterministic).":
     "所有事件与场景均为按任务分钟键控的确定性模拟重放。",
-  // results panel
+  // results card
   "Route & budget": "路线与预算",
   "Select a science target to plan a round trip. Nothing is computed yet — no fake numbers are shown.":
     "选择一个科学目标来规划往返。尚未计算 — 不显示任何虚构数字。",
@@ -96,8 +103,9 @@ const ZH: Record<string, string> = {
   "strategy \"{s}\" · request {id} · computed in {ms} ms · resource units are simulated 0–100 budget points":
     "策略“{s}” · 请求 {id} · 计算耗时 {ms} ms · 资源为 0–100 模拟预算单位",
   "Strategy comparison:": "策略对比：",
-  "Initial resources adjustable in the mission panel (simulated units).":
-    "初始资源可在任务面板中调整（模拟单位）。",
+  "Initial resources {a} / {b} (simulated units) · reserve adjustable in the mission card.":
+    "初始资源 {a} / {b}（模拟单位）· 预留可在任务卡中调整。",
+  "Results card": "结果卡",
   // HUD strip
   "IDLE": "待命",
   "PLANNED": "已规划",
@@ -115,14 +123,25 @@ const ZH: Record<string, string> = {
   "T+{t} / {total} min": "T+{t} / {total} 分钟",
   "not started": "未开始",
   // legend
+  "Legend": "图例",
   "outbound route": "去程路线",
   "return route (recomputed)": "返程路线（独立重算）",
   "blocked area (simulated closure)": "封闭区（模拟事件）",
+  "selection ring: 70 m display marker around the selected site (not a measurement)":
+    "选中环：围绕所选科学目标的 70 米显示标记（非测量结果）",
+  "mission position marker: light column at the walking position, enlarged for visibility (not to scale)":
+    "任务位置光标：行进位置上的光柱标记，放大以便远距可见（非真实比例）",
   "grid 20 m/cell · vertical relief ×3 display only": "网格 20 米/格 · 垂直起伏 ×3 仅用于显示",
   "controls: left-drag pan · right-drag rotate/pitch · wheel zoom": "操作：左键拖动平移 · 右键拖动旋转/俯仰 · 滚轮缩放",
   "units: meters · minutes · simulated 0–100 budget units": "单位：米 · 分钟 · 0–100 模拟预算单位",
+  "lighting: key-light azimuth matches the DEM hillshade (NW) · warm fill is display only":
+    "光照：主光方位与 DEM 山影一致（西北）· 暖色补光仅用于显示",
   "terrain: MRO CTX DEM/ortho mosaic (Mangold et al. 2021) · sources: {n} records · v{v}":
     "地形：MRO CTX DEM/正射镶嵌（Mangold et al. 2021）· 来源：{n} 条记录 · v{v}",
+  // bottom bar (timeline slot is real progress display; replay interaction is V2)
+  "mission progress": "任务进度",
+  "Mission timeline: replay interaction arrives in a later phase":
+    "任务时间轴：回看交互将在后续阶段提供",
   // sources drawer
   "Close (Esc)": "关闭 (Esc)",
   "Sources (observed)": "来源（观测）",

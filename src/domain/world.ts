@@ -132,12 +132,65 @@ export interface CameraPose {
   target: WorldPoint;
 }
 
-/** Overview pose for the whole region. */
+/** Overview pose for the whole region: an oblique framing that keeps the whole
+ * tile in view but reads as terrain rather than a flat plan. */
 export function overviewPose(t: WorldTransform, heightSpanY: number): CameraPose {
-  const d = 6600;
+  const d = 6100;
   return {
-    target: { x: 0, y: heightSpanY * 0.3, z: 0 },
-    position: { x: 0, y: d * 0.7, z: d },
+    target: { x: 0, y: heightSpanY * 0.22, z: 0 },
+    position: { x: -d * 0.16, y: d * 0.66, z: d * 0.86 },
+  };
+}
+
+/** Opening shot for the intro move: high and far to the south-east, so the
+ * 2.5 s ease down to the overview reads as a descent onto the terrain. */
+export function introPose(t: WorldTransform): CameraPose {
+  return {
+    target: { x: 0, y: 60, z: 0 },
+    position: { x: 1500, y: 7600, z: 8300 },
+  };
+}
+
+/** Camera pose that frames a WHOLE route (outbound + return): bounding sphere
+ * of the world-space path points, camera pulled back along the same oblique
+ * family as the overview until the sphere fits the vertical field of view with
+ * margin. Vertical fov is 46° in the Sandbox camera (half = 23°). */
+export function routePose(t: WorldTransform, pts: WorldPoint[]): CameraPose {
+  let minX = Infinity;
+  let minY = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let maxZ = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    minZ = Math.min(minZ, p.z);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+    maxZ = Math.max(maxZ, p.z);
+  }
+  const center = {
+    x: (minX + maxX) / 2,
+    y: (minY + maxY) / 2,
+    z: (minZ + maxZ) / 2,
+  };
+  const radius = Math.max(400, Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) / 2);
+  // |camera-center| must be >= radius / sin(halfFov=23°) ≈ 2.56·radius; the
+  // camera offset below has length 0.877·dist (direction is unit-horizontal),
+  // so dist = 3.3·radius leaves ~13% margin. Clamped to the OrbitControls
+  // range — a clamp on a route longer than ~5 km radius may crop the edges
+  // (the frozen Jezero scenarios stay inside the unclamped range).
+  const dist = Math.min(8800, Math.max(2000, 3.3 * radius));
+  const dirX = -0.28;
+  const dirZ = 0.96; // unit-horizontal, south-east-ish like the overview
+  return {
+    target: center,
+    position: {
+      x: center.x + dirX * dist * 0.62,
+      y: center.y + dist * 0.62,
+      z: center.z + dirZ * dist * 0.62,
+    },
   };
 }
 
