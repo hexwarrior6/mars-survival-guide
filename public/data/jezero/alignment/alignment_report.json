@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "1.0",
+  "globalRegistration": {
+    "method": "joint translation scan of mean NCC between high-pass ortho texture and high-pass DEM hillshade over textured patches, parabolic sub-cell refinement",
+    "patchCells": 10,
+    "searchRangeCells": 6,
+    "patchCount": 144,
+    "bestOffsetCells": {
+      "dy": -0.25,
+      "dx": -0.12
+    },
+    "bestOffsetMeters": {
+      "dy": -5.1,
+      "dx": -2.4
+    },
+    "meanNccAtBest": 0.18875,
+    "meanNccAtNextBest": 0.18299,
+    "interpretation": "peak at the published georeference: the CTX ortho and CTX DEM mosaics are co-registered as published; single-patch scatter is texture ambiguity, averaged out by the joint vote"
+  },
+  "gate": "project acceptance target: control-point error <= one planning cell (20 m)",
+  "controlPoints": [
+    {
+      "row": 219,
+      "col": 74,
+      "name": "CP1 fresh-crater neighborhood",
+      "method": "joint vote of textured patches within the neighborhood radius; offset = shift applied to the ortho to match the DEM",
+      "neighborhoodRadiusCells": 56,
+      "offsetMeters": {
+        "dx": -0.9,
+        "dy": 5.3
+      },
+      "absErrorM": 5.4,
+      "meanNcc": 0.2211,
+      "patchCount": 96,
+      "status": "measured"
+    },
+    {
+      "row": 165,
+      "col": 164,
+      "name": "CP2 floor-crater neighborhood",
+      "method": "joint vote of textured patches within the neighborhood radius; offset = shift applied to the ortho to match the DEM",
+      "neighborhoodRadiusCells": 56,
+      "offsetMeters": {
+        "dx": -2.7,
+        "dy": -21.9
+      },
+      "absErrorM": 22.1,
+      "meanNcc": 0.1693,
+      "patchCount": 144,
+      "status": "measured"
+    },
+    {
+      "row": 172,
+      "col": 235,
+      "name": "CP3 floor-crater neighborhood",
+      "method": "joint vote of textured patches within the neighborhood radius; offset = shift applied to the ortho to match the DEM",
+      "neighborhoodRadiusCells": 56,
+      "offsetMeters": {
+        "dx": -5.0,
+        "dy": -25.1
+      },
+      "absErrorM": 25.6,
+      "meanNcc": 0.0818,
+      "patchCount": 84,
+      "status": "measured_low_texture"
+    },
+    {
+      "row": 97,
+      "col": 152,
+      "name": "CP4 delta-tip neighborhood",
+      "method": "joint vote of textured patches within the neighborhood radius; offset = shift applied to the ortho to match the DEM",
+      "neighborhoodRadiusCells": 56,
+      "offsetMeters": {
+        "dx": 9.1,
+        "dy": -10.5
+      },
+      "absErrorM": 13.9,
+      "meanNcc": 0.2147,
+      "patchCount": 144,
+      "status": "measured"
+    },
+    {
+      "row": 150,
+      "col": 180,
+      "name": "CP5 base-plateau neighborhood",
+      "method": "joint vote of textured patches within the neighborhood radius; offset = shift applied to the ortho to match the DEM",
+      "neighborhoodRadiusCells": 56,
+      "offsetMeters": {
+        "dx": 6.2,
+        "dy": -13.7
+      },
+      "absErrorM": 15.0,
+      "meanNcc": 0.162,
+      "patchCount": 144,
+      "status": "measured"
+    }
+  ],
+  "summary": {
+    "measuredCount": 5,
+    "absErrorMeanM": 16.4,
+    "absErrorRmsM": 17.84,
+    "absErrorMaxM": 25.6,
+    "planningCellM": 20.0,
+    "neighborhoodsWithinOneCell": 3,
+    "verdict": "global registration at the published georeference (sub-cell offset); per-neighborhood offsets within one planning cell except CP2 floor-crater neighborhood, CP3 floor-crater neighborhood - those neighborhoods must be treated as carrying larger position uncertainty when sites or labels are pinned nearby"
+  },
+  "unknownPolicy": "valid_mask.u8 == 0 marks unknown cells; routing must treat them as impassable and the UI must not render them as 0 m elevation",
+  "regionUnknownCells": 0
+}

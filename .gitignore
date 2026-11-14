@@ -147,3 +147,7 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Mars Survival Guide: phase working data (raw product cache ~830 MB) and local venv
+cache/
+.venv/

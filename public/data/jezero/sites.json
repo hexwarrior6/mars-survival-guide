@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "1.0",
+  "note": "Positions are anchored to unmistakable landforms in the real DEM/ortho by manual identification (method in alignment_report.json); positionUncertaintyM expresses that identification limit, not instrument precision. Science objectives come from the cited Mars 2020 mission records. samplingDurationMin is left to Phase 2.",
+  "sites": [
+    {
+      "id": "SITE-A",
+      "name": "Delta front strata overlook",
+      "xM": 2610.0,
+      "yM": 2310.0,
+      "rowCol": [
+        140,
+        130
+      ],
+      "objective": "Observe stacked delta-front sedimentary strata at the scarp base - the lake-to-delta transition of the ancient Jezero lake system documented by the Mars 2020 mission.",
+      "positionUncertaintyM": 150,
+      "positioningMethod": "manual identification of the delta front scarp base on the CTX ortho extract and DEM hillshade",
+      "sourceIds": [
+        "nasa-m2020-landing-site",
+        "jpl-2022-09-15-delta-sediments",
+        "hirise-caption-psp-003798-1985"
+      ],
+      "imageIds": [],
+      "samplingDurationMin": null
+    },
+    {
+      "id": "SITE-B",
+      "name": "Delta top channel junction",
+      "xM": 1810.0,
+      "yM": 3710.0,
+      "rowCol": [
+        70,
+        90
+      ],
+      "objective": "Inspect delta-top distributary channel deposits; delta sedimentary rocks were the target of Mars 2020's second science campaign, including organic-matter detections in lake sediments.",
+      "positionUncertaintyM": 200,
+      "positioningMethod": "manual identification of a distributary channel junction on the delta top in the CTX ortho extract and DEM hillshade",
+      "sourceIds": [
+        "nasa-m2020-landing-site",
+        "jpl-2022-09-15-delta-sediments"
+      ],
+      "imageIds": [],
+      "samplingDurationMin": null
+    },
+    {
+      "id": "SITE-C",
+      "name": "Small fresh crater (crater floor)",
+      "xM": 1490.0,
+      "yM": 730.0,
+      "rowCol": [
+        219,
+        74
+      ],
+      "objective": "Examine a small fresh impact crater exposing subsurface crater-floor material; crater-floor rocks were the focus of the mission's first science campaign.",
+      "positionUncertaintyM": 50,
+      "positioningMethod": "center of a distinct bright-rimmed crater visible in both the CTX ortho extract and the DEM hillshade (also control point CP1)",
+      "sourceIds": [
+        "nasa-m2020-landing-site"
+      ],
+      "imageIds": [],
+      "samplingDurationMin": null
+    }
+  ]
+}

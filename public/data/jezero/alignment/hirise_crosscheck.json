@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "purpose": "independent cross-validation of the CTX DEM mosaic against the HiRISE 1 m DTM",
+  "dtmProductId": "DTEEC_045994_1985_046060_1985_U01",
+  "points": [
+    {
+      "projectedXYM": [
+        4352090.0,
+        1093030.0
+      ],
+      "ctxDemElevM": -2485.671875,
+      "hiriseDtmElevM": -2511.06884765625
+    },
+    {
+      "projectedXYM": [
+        4353890.0,
+        1094110.0
+      ],
+      "ctxDemElevM": -2555.09326171875,
+      "hiriseDtmElevM": -2555.984375
+    },
+    {
+      "projectedXYM": [
+        4355310.0,
+        1093970.0
+      ],
+      "ctxDemElevM": -2572.445068359375,
+      "hiriseDtmElevM": -2583.0205078125
+    },
+    {
+      "projectedXYM": [
+        4353650.0,
+        1095470.0
+      ],
+      "ctxDemElevM": -2480.314453125,
+      "hiriseDtmElevM": -2471.20703125
+    },
+    {
+      "projectedXYM": [
+        4354210.0,
+        1094410.0
+      ],
+      "ctxDemElevM": -2563.369140625,
+      "hiriseDtmElevM": -2562.79541015625
+    },
+    {
+      "projectedXYM": [
+        4354210.0,
+        1094410.0
+      ],
+      "ctxDemElevM": -2563.369140625,
+      "hiriseDtmElevM": -2562.79541015625
+    },
+    {
+      "projectedXYM": [
+        4353210.0,
+        1094610.0
+      ],
+      "ctxDemElevM": -2549.81591796875,
+      "hiriseDtmElevM": -2536.632568359375
+    },
+    {
+      "projectedXYM": [
+        4352410.0,
+        1096010.0
+      ],
+      "ctxDemElevM": -2457.79833984375,
+      "hiriseDtmElevM": -2451.9365234375
+    },
+    {
+      "projectedXYM": [
+        4352090.0,
+        1093030.0
+      ],
+      "ctxDemElevM": -2485.671875,
+      "hiriseDtmElevM": -2511.06884765625
+    }
+  ],
+  "validCount": 9,
+  "diffMeanM": -3.6622721354166665,
+  "diffAbsMeanM": 10.173394097222221,
+  "diffMaxAbsM": 25.39697265625,
+  "scarpProfileRegistration": {
+    "method": "north-south elevation profiles across the delta front scarp; shift between CTX DEM and HiRISE DTM profiles minimizing RMS (positive = HiRISE DTM features sit south of their CTX DEM positions)",
+    "lines": [
+      {
+        "colCell": 100,
+        "sampleCount": 150,
+        "rmsNoShiftM": 9.72,
+        "bestRmsM": 5.63,
+        "shiftM": 90.0
+      },
+      {
+        "colCell": 125,
+        "sampleCount": 150,
+        "rmsNoShiftM": 17.3,
+        "bestRmsM": 8.8,
+        "shiftM": 105.0
+      },
+      {
+        "colCell": 150,
+        "sampleCount": 150,
+        "rmsNoShiftM": 10.82,
+        "bestRmsM": 5.75,
+        "shiftM": 85.0
+      }
+    ],
+    "meanShiftM": 93.3,
+    "interpretation": "consistent decameter offset between the 2017 HiRISE DTM and the 2021 CTX mosaic georeferences (different photogrammetric solutions). The planning grid keeps the CTX georeference; the HiRISE DTM is used for elevation cross-checks, not as a pixel-level anchor."
+  },
+  "regionOverlap": {
+    "sampleGrid": "64x64 over region",
+    "insideHiriseFootprintFraction": 0.96875,
+    "validElevationFractionInsideFootprint": 0.9135584677419355,
+    "elevMinM": -2616.0107421875,
+    "elevMaxM": -2389.161376953125
+  },
+  "note": "both products reference the Mars 2000 datum family; the point elevation differences include vintage and production differences, expect meter-to-decameter agreement; the horizontal cross-vintage offset is reported by scarpProfileRegistration and is not an error of the planning pair"
+}

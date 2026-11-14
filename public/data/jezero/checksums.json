@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0",
+  "algorithm": "sha256",
+  "files": {
+    "README.md": {
+      "bytes": 3164,
+      "sha256": "3ad2dd0d081859130f718b136027288b1067961bbf8a41d3caa0d8e715264cd4"
+    },
+    "alignment/alignment_check.png": {
+      "bytes": 318174,
+      "sha256": "4e8f0da39d9822b482df88bd8439ec82fddd0aa82b1d83ac744938031792de15"
+    },
+    "alignment/alignment_report.json": {
+      "bytes": 3710,
+      "sha256": "26d86b3488ad0f2e28d24d133453091e5faaf38b014214fce437cfc0725579d3"
+    },
+    "alignment/hirise_crosscheck.json": {
+      "bytes": 3339,
+      "sha256": "48611abee9f517f012902cbded73d10c0685dff088554172b39f02671a259bfa"
+    },
+    "imagery/ortho_20m.jpg": {
+      "bytes": 18607,
+      "sha256": "e6141b60c4a2b5e9d28c112adc8d116d6289642a3766b3bc48add5769fce3701"
+    },
+    "imagery/ortho_5m.jpg": {
+      "bytes": 190423,
+      "sha256": "1659a012e9454d7ff1c90b93f0b38085e5acd12235a31af6c24c8c44ca147d20"
+    },
+    "region.json": {
+      "bytes": 1601,
+      "sha256": "9e1b6d96dbe3427d35d24b9b701ce83d236f0b6587c71b51606813c25eaafa0b"
+    },
+    "scenario.json": {
+      "bytes": 2267,
+      "sha256": "c6535b00dc1501f1de26996a1c77111cfde184e9dca9161e65018997fe46d760"
+    },
+    "sites.json": {
+      "bytes": 2487,
+      "sha256": "5f53104766293055eab560168febfd135b7d449d58350db40feb020b018aa7a8"
+    },
+    "sources.json": {
+      "bytes": 5998,
+      "sha256": "ce0495eaec1895271eee0c98f61332cd0a6d4eab85cb3c50a24b92c6037afc0a"
+    },
+    "terrain/elevations.f32": {
+      "bytes": 262144,
+      "sha256": "3bb2331ebeb53302fc95a580fedf2398717fdea5a759b45d214089524a45beb1"
+    },
+    "terrain/slope_deg.f32": {
+      "bytes": 262144,
+      "sha256": "1e0ece7398d66236069ffd9cbc0498f9b33ca8d4248282d37d5f3a2c64333b9c"
+    },
+    "terrain/terrain.json": {
+      "bytes": 1145,
+      "sha256": "924f3d3704d28a36699754c6b96d2e0e98acd1fe4f7d53eab25f92d2c4aa39c4"
+    },
+    "terrain/valid_mask.u8": {
+      "bytes": 65536,
+      "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "1.0",
+  "kind": "derived",
+  "sourceIds": [
+    "m20-ctx-dem-mosaic"
+  ],
+  "method": "central-difference gradient on the native 20 m grid (1-cell apron); unknown cells keep slope 0 but validMask=0 so they are never passable",
+  "parameters": {
+    "cellSizeM": 20.0,
+    "gradient": "central difference",
+    "apronCells": 1
+  },
+  "files": {
+    "elevations.f32": {
+      "shape": [
+        256,
+        256
+      ],
+      "dtype": "float32 little-endian",
+      "unit": "m",
+      "nodataPolicy": "unknown elevation => valid_mask.u8 == 0; never encoded as 0 m"
+    },
+    "valid_mask.u8": {
+      "shape": [
+        256,
+        256
+      ],
+      "dtype": "uint8",
+      "values": {
+        "1": "valid",
+        "0": "unknown"
+      }
+    },
+    "slope_deg.f32": {
+      "shape": [
+        256,
+        256
+      ],
+      "dtype": "float32 little-endian",
+      "unit": "deg"
+    }
+  },
+  "stats": {
+    "validCells": 65536,
+    "elevMinM": -2610.919677734375,
+    "elevMaxM": -2400.8779296875,
+    "slopeMedianDeg": 2.8285748958587646,
+    "slopeP95Deg": 12.08717155456543,
+    "slopeMaxDeg": 34.37901306152344
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "1.0",
+  "id": "jezero-west-delta-01",
+  "name": "Jezero western delta planning region",
+  "projection": {
+    "name": "Equirectangular (Mars sphere) source products; local metric frame for the app",
+    "sourceProjection": {
+      "name": "Equirectangular (Mars sphere)",
+      "radiusM": 3396190.0,
+      "standardParallelDeg": 18.4663,
+      "centralMeridianDeg": 0.0,
+      "latitudeType": "planetocentric",
+      "source": "PDS4 label M20_JezeroCrater_CTXDEM_20m.xml"
+    },
+    "sourceProjectedOriginXYM": [
+      4350600.0,
+      1097420.0
+    ],
+    "localFrame": "x east, y north; origin (0, heightM) at the NW outer corner"
+  },
+  "horizontalDatum": "Mars 2000 sphere, r=3396190 m (PDS4 label)",
+  "verticalDatum": "areoid-referenced elevations as distributed in the source products (see sources.json)",
+  "boundsLocalM": {
+    "originXM": 0.0,
+    "originYM": 5120.0,
+    "widthM": 5120.0,
+    "heightM": 5120.0
+  },
+  "boundsLatLon": {
+    "north": 18.514139,
+    "south": 18.427762,
+    "west": 77.381624,
+    "east": 77.47269
+  },
+  "transform": "localX = sourceProjectedX - originXM(source); localY = sourceProjectedY - originYM(source)",
+  "grid": {
+    "widthCells": 256,
+    "heightCells": 256,
+    "cellSizeM": 20.0,
+    "rowOrder": "row 0 = north, rows increase south",
+    "colOrder": "col 0 = west, cols increase east",
+    "cellCenterLocalM": "x = (col+0.5)*cellSizeM; y = heightM - (row+0.5)*cellSizeM"
+  },
+  "sourceIds": [
+    "m20-ctx-dem-mosaic",
+    "m20-ctx-ortho-mosaic",
+    "hirise-dteec-045994-1985-046060-1985"
+  ],
+  "frozenAt": "2026-11-14"
+}

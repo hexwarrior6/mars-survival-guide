@@ -1,6 +1,6 @@
 # 调研与证据边界
 
-调研日期：2026-11-14。范围：比赛约束、原始 README 核查、数据入口与实现可行性。尚未下载和解析完整科学数据产品，尚未运行应用。
+调研日期：2026-11-14。范围：比赛约束、原始 README 核查、数据入口与实现可行性。**2026-11-14 阶段 1 更新：地形与影像产品已实际取得并验证，见第 2.1 节；科学地点定位方法与限制见第 2.2 节。**
 
 ## 1. 比赛要求
 
@@ -21,13 +21,29 @@
 
 | 数据 | 已知依据 | 计划用途 | 待验证 |
 | --- | --- | --- | --- |
-| 首选：Jezero HiRISE DTM 与正射影像（MRO） | [科学团队制图研究](https://authors.library.caltech.edu/records/a7qs5-xhq84)描述 1 m/pixel DTM 和 25 cm/pixel 底图；[HiRISE DTM 目录](https://hirise.lpl.arizona.edu/dtm/)本轮可读 | 裁剪同一区域，生成坡度、阴影和规划网格 | 产品 ID、下载、覆盖、投影、垂直基准、NoData、大小、使用条款；论文描述不等于已取得文件 |
-| 备选：Mars 2020 CTX DEM（MRO） | [USGS 产品页](https://astrogeology.usgs.gov/search/map/mars_2020_science_investigation_ctx_dem_mosaic)搜索索引列出 20 m DEM；正文抓取 403 | 区域尺度规划，明确精度限制 | 文件读取、影像配准；不能上采样后宣称米级导航 |
-| 必需：Perseverance 影像与地点科学资料（Mars 2020） | 官方题目资源指向 [Raw Images](https://mars.nasa.gov/mars2020/multimedia/raw-images/) | 至少 3 个有来源的科学地点及考察目的 | 图片 ID、目标位置与拍摄位置的区别、坐标来源、素材条款 |
-| 增强：MEDA 历史环境记录（Mars 2020） | [PDS MEDA](https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/PERSEVERANCE/meda.html)与[产品检索说明](https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/PERSEVERANCE/retrieving_mars2020.html)本轮可读 | 注明 sol/UTC 的背景曲线，或带假设的场景输入 | 产品、质量标志、缺失值、单位、时间对齐；不生成实测空间天气图 |
-| 后续：Curiosity RAD | [NASA 仪器说明](https://science.nasa.gov/mission/msl-curiosity/science-instruments/)前一轮已读 | 背景参考；以后考虑有依据的暴露估计 | 跨位置迁移假设、剂量定义；不能直接生成 Jezero 实测热力图 |
+| **已取得**：Mars 2020 Science Investigation CTX DEM mosaic，20 m/px（MRO/CTX，Mangold et al. 2021） | USGS Astrogeology 发布，PDS4 LID `urn:nasa:pds:mars2020_ctx_basemap_2021:data:m20_ctxdem_mosaic` v1.0；PDS4 标签与 GeoTIFF 已下载解析 | 规划网格地形源（阶段 1 已冻结区域并生成网格） | ~~产品 ID、下载、覆盖、投影、垂直基准、NoData、大小、使用条款~~ 已验证，见 2.1 |
+| **已取得**：同批 CTX 正射影像 mosaic，约 5 m/px | 同一 USGS 发布目录 `ScienceInvestigationMaps_JPL` | 底图对齐检查与后续纹理源 | 已验证，见 2.1 |
+| **已取得**：HiRISE DTM `DTEEC_045994_1985_046060_1985_U01`，约 1 m/px（MRO/HiRISE，University of Arizona） | PDS3 数据集 `MRO-M-HIRISE-5-DTM-V1.0`，标注 "Candidate landing site for 2020 mission in Jezero Crater"，足迹覆盖规划区域 | 仅作独立交叉验证（见 2.1 的跨年代偏移发现） | 已下载解析（380 MB IMG） |
+| 必需：Perseverance 影像与地点科学资料（Mars 2020） | 官方题目资源指向 [Raw Images](https://mars.nasa.gov/mars2020/multimedia/raw-images/)；本轮已用 NASA/JPL 任务页与新闻稿建立科学目标 | 至少 3 个有来源的科学地点（阶段 1 已按陆标锚定交付，见 2.2） | 逐样品点精确坐标仍无机器可读官方来源；图片素材条款待逐张核对 |
+| 增强：MEDA 历史环境记录（Mars 2020） | [PDS MEDA](https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/PERSEVERANCE/meda.html) | 注明 sol/UTC 的背景曲线，或带假设的场景输入 | 产品、质量标志、缺失值、单位、时间对齐；不生成实测空间天气图 |
+| 后续：Curiosity RAD | NASA 仪器说明 | 背景参考 | 跨位置迁移假设、剂量定义；不能直接生成 Jezero 实测热力图 |
 
-CTX 索引给出的[候选 GeoTIFF](https://planetarymaps.usgs.gov/mosaic/mars2020_trn/CTX/ScienceInvestigationMaps_JPL/M20_JezeroCrater_CTXDEM_20m.tif)尚未确认下载或解析成功。网页预览图不能代替数值 DEM。
+HiRISE DTM 目录（uahirise.org/dtm）为分页网页目录，无机器可读清单；本轮通过网页目录 + PDS 目录路径定位到覆盖 Jezero 落点区的 DTEEC 产品并完成下载验证，"优先验证 HiRISE"已完成（产品标签、单位、投影、NoData 可追溯），规划网格仍按备选约定使用 CTX DEM。
+
+### 2.1 阶段 1 实际取得与验证记录（2026-11-14）
+
+以下为实际执行的下载与解析结果，命令与脚本见 `scripts/data/`：
+
+- **M20_JezeroCrater_CTXDEM_20m.tif**（90,345,300 字节）：float32、4456×5067、20 m/px、等距圆柱投影（火星球体 r=3396190 m，标准纬线 18.4663°）、NoData=-3.4028234663852886e+38；投影坐标即米制。裁剪区 256×256 无 NoData。
+- **M20_JezeroCrater_CTXortho_mosaic_5m.tif**（359,599,280 字节）：uint8 单波段，约 5 m/px，与 DEM 同投影（栅格原点有亚像元差异，按地理参考取样处理）。
+- **DTEEC_045994_1985_046060_1985_U01.IMG**（380,814,764 字节）：PDS3 附带标签，14266×6673、1.0097 m/px、高程单位为 Mars 2000 Datum 米；GDAL PDS 驱动直接解析。
+- **交叉验证发现（重要）**：HiRISE DTM 与 CTX DEM 之间存在 **约 +93 m 的系统性南北向配准差**（三角洲前缘三条剖面 +90/+105/+85 m 一致；1D 剖面相关将 RMS 从 9.7–17.3 m 降至 5.6–8.8 m）。这是 2017 HiRISE 解算与 2021 CTX 镶嵌之间控制网代际差的体现：**规划网格保留 CTX 地理参考**，HiRISE DTM 只用于高程交叉验证（9 个采样点平均绝对差 10.2 m，最大 25.4 m），不得当作像素级锚点。
+- **CTX 正射 ↔ CTX DEM 对齐**（规划配对）：高通纹理联合平移扫描（144 个有纹理 patch）峰值位于已发布地理参考处（亚格精化后偏移 dx≈-2.4 m、dy≈-5.1 m），确认两者同基准配准；逐邻域偏移 5.4–25.6 m，RMS 17.8 m，其中 2 个邻域超出一个规划格（详见数据包 alignment_report.json，按约定以不确定度呈现而非伪装通过）。
+
+### 2.2 科学地点定位方法与限制（2026-11-14）
+
+- NASA/JPL 官方页面可核实**科学目标**（Jezero 古湖泊/三角洲、三角洲沉积岩样品、有机质检出），但**逐样品点的精确坐标没有机器可读官方来源**（Where-is-the-rover 地图接口不可抓取，新闻稿只有叙述性距离；PDS 检索 API 未返回 traverse 产品）。
+- 按约定采用**陆标锚定**：3 个地点分别锚定于 unmistakable 的真实地貌（三角洲前缘陡坎脚下、扇顶分流河道交汇、湖底新鲜小陨石坑），位置不确定度 50–200 m 并记录定位方法；不虚构"Wildcat Ridge/Kodiak"等样品点的精确坐标。它们的逐点坐标留待后续从 PDS traverse 产品或地理参考图件核实。
 
 题目还推荐 [Mars Trek](https://trek.nasa.gov/mars/) 和 [USGS 火星地质图](https://astrogeology-usgs.hub.arcgis.com/pages/interactive-maps-mars)。用它们发现产品、核对地理位置；不把门户名称当成数据产品标识，也不要求应用运行时访问这些服务。
 

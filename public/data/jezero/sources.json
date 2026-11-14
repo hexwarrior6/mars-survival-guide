@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "1.0",
+  "rawInputFiles": {
+    "M20_JezeroCrater_CTXDEM_20m.tif": {
+      "bytes": 90345300,
+      "sha256": "ba7f706ea1b5d63a562f28a7dcf7a7f3c79bce7f048e6974b57e8a33c30d1ba2",
+      "retrievedAt": "2026-11-14"
+    },
+    "M20_JezeroCrater_CTXortho_mosaic_5m.tif": {
+      "bytes": 359599280,
+      "sha256": "cd9f4b2154fdd43e8c17abfbae63210b72507db2209d1d7db63f6f855b18d2df",
+      "retrievedAt": "2026-11-14"
+    },
+    "DTEEC_045994_1985_046060_1985_U01.IMG": {
+      "bytes": 380814764,
+      "sha256": "b40739b4d32516ef9b3cd849f519a6a20df9720b5369a9c141047ced27c57654",
+      "retrievedAt": "2026-11-14"
+    }
+  },
+  "sources": [
+    {
+      "id": "m20-ctx-dem-mosaic",
+      "mission": "MRO",
+      "instrument": "CTX",
+      "title": "Mars 2020 Science Investigation CTX DEM mosaic, 20 m/px",
+      "sourceUrl": "https://astrogeology.usgs.gov/search/map/mars_2020_science_investigation_ctx_dem_mosaic",
+      "productId": "M20_JezeroCrater_CTXDEM_20m.tif",
+      "pdsLid": "urn:nasa:pds:mars2020_ctx_basemap_2021:data:m20_ctxdem_mosaic (v1.0)",
+      "retrievedAt": "2026-11-14",
+      "observationTime": null,
+      "units": "elevation meters (float32); projection meters (Equirectangular, Mars sphere)",
+      "credit": "Mangold et al., 2021, Science / NASA/JPL-Caltech/USGS",
+      "usageTerms": "NASA/USGS publicly released science product; cite Mangold et al. 2021 (doi:10.1126/science.abl4051) per PDS4 label citation_information",
+      "limitations": "20 m/px photogrammetric DEM; widths below one cell and smoothed steep faces are not resolved; slope on this grid is a planning proxy"
+    },
+    {
+      "id": "m20-ctx-ortho-mosaic",
+      "mission": "MRO",
+      "instrument": "CTX",
+      "title": "Mars 2020 Science Investigation CTX ortho mosaic, ~5 m/px",
+      "sourceUrl": "https://astrogeology.usgs.gov/search/map/mars_2020_science_investigation_ctx_dem_mosaic",
+      "productId": "M20_JezeroCrater_CTXortho_mosaic_5m.tif",
+      "pdsLid": "urn:nasa:pds:mars2020_ctx_basemap_2021 (v1.0, same release)",
+      "retrievedAt": "2026-11-14",
+      "observationTime": null,
+      "units": "8-bit grayscale radiance (display), projection meters",
+      "credit": "Mangold et al., 2021, Science / NASA/JPL-Caltech/USGS",
+      "usageTerms": "NASA/USGS publicly released science product; same citation requirement",
+      "limitations": "grayscale radiance for alignment/texture, not calibrated reflectance"
+    },
+    {
+      "id": "hirise-dteec-045994-1985-046060-1985",
+      "mission": "MRO",
+      "instrument": "HiRISE",
+      "title": "HiRISE DTM DTEEC_045994_1985_046060_1985_U01 (Jezero candidate landing site)",
+      "sourceUrl": "https://hirise-pds.lpl.arizona.edu/PDS/DTM/ESP/ORB_045900_045999/ESP_045994_1985_ESP_046060_1985/",
+      "productId": "DTEEC_045994_1985_046060_1985_U01",
+      "pdsLid": "dataset MRO-M-HIRISE-5-DTM-V1.0",
+      "retrievedAt": "2026-11-14",
+      "observationTime": "images acquired 2016 (ESP_045994 / ESP_046060); DTM released 2017-07-27",
+      "units": "elevation meters above Mars 2000 datum (PDS3 label), 1.0097 m/px",
+      "credit": "NASA/JPL/University of Arizona",
+      "usageTerms": "publicly released PDS product; cite HiRISE/University of Arizona",
+      "limitations": "used in Phase 1 only for independent cross-validation; not the planning grid source"
+    },
+    {
+      "id": "nasa-m2020-landing-site",
+      "mission": "Mars 2020",
+      "instrument": null,
+      "title": "NASA Mars 2020 mission page - Landing Site: Jezero Crater",
+      "sourceUrl": "https://mars.nasa.gov/mars2020/mission/landing-site/",
+      "productId": null,
+      "retrievedAt": "2026-11-14",
+      "observationTime": null,
+      "units": null,
+      "credit": "NASA/JPL",
+      "usageTerms": "public NASA mission documentation (text reference)",
+      "limitations": "narrative objectives; no precise sample-site coordinates published in machine-readable form on this page"
+    },
+    {
+      "id": "jpl-2022-09-15-delta-sediments",
+      "mission": "Mars 2020",
+      "instrument": "SHERLOC/SuperCam record",
+      "title": "NASA's Perseverance Rover Investigates Geologically Rich Mars Terrain (JPL news, 2022-09-15)",
+      "sourceUrl": "https://www.jpl.nasa.gov/news/nasas-perseverance-rover-investigates-geologically-rich-mars-terrain/",
+      "productId": null,
+      "retrievedAt": "2026-11-14",
+      "observationTime": "2022-09-15",
+      "units": null,
+      "credit": "NASA/JPL-Caltech/ASU/MSSS",
+      "usageTerms": "public NASA/JPL news release (text reference)",
+      "limitations": "documents Wildcat Ridge / Skinner Ridge objectives; exact sample-outcrop coordinates are not published on the page, so this package pins landform-anchored observation points with stated uncertainty"
+    },
+    {
+      "id": "hirise-caption-psp-003798-1985",
+      "mission": "MRO",
+      "instrument": "HiRISE",
+      "title": "HiRISE caption PSP_003798_1985 'Depositional Fan' (Jezero delta)",
+      "sourceUrl": "https://www.uahirise.org/PSP_003798_1985",
+      "productId": "PSP_003798_1985",
+      "retrievedAt": "2026-11-14",
+      "observationTime": "acquired 2007-05-19, center 18.489 N 77.409 E",
+      "units": null,
+      "credit": "NASA/JPL-Caltech/University of Arizona",
+      "usageTerms": "public HiRISE caption (text reference)",
+      "limitations": "observation-center coordinates, not a feature pin"
+    }
+  ],
+  "classification": {
+    "observed": [
+      "m20-ctx-dem-mosaic",
+      "m20-ctx-ortho-mosaic",
+      "hirise-dteec-045994-1985-046060-1985",
+      "nasa-m2020-landing-site",
+      "jpl-2022-09-15-delta-sediments",
+      "hirise-caption-psp-003798-1985"
+    ],
+    "derived": [
+      "terrain grids (elevations/valid/slope)",
+      "ortho extracts",
+      "alignment measurements",
+      "science-site landform anchors"
+    ],
+    "simulated": [
+      "BASE (Jezero Base)",
+      "EVENT-1 battery loss",
+      "EVENT-2 area closure",
+      "passability slope threshold 20 deg"
+    ]
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "1.0",
+  "id": "jezero-west-delta-01",
+  "base": {
+    "id": "BASE",
+    "name": "Jezero Base (simulated facility)",
+    "xM": 3610.0,
+    "yM": 2110.0,
+    "rowCol": [
+      150,
+      180
+    ],
+    "note": "Fictional base placed on smooth, valid crater floor (local slope 0.6 deg). Not an observation."
+  },
+  "availableSiteIds": [
+    "SITE-A",
+    "SITE-B",
+    "SITE-C"
+  ],
+  "events": [
+    {
+      "id": "EVENT-1",
+      "type": "battery_loss",
+      "kind": "simulated",
+      "geometry": {
+        "type": "circle",
+        "centerRowCol": [
+          136,
+          156
+        ],
+        "centerLocalM": [
+          3130.0,
+          2390.0
+        ],
+        "radiusM": 100.0
+      },
+      "note": "Point event on the base->SITE-B corridor; loss amount and resource parameters are frozen in Phase 2, not here."
+    },
+    {
+      "id": "EVENT-2",
+      "type": "area_closure",
+      "kind": "simulated",
+      "geometry": {
+        "type": "rectangle",
+        "rows": [
+          92,
+          122
+        ],
+        "cols": [
+          116,
+          146
+        ],
+        "cornersLocalM": [
+          [
+            2320.0,
+            3280.0
+          ],
+          [
+            2920.0,
+            3280.0
+          ],
+          [
+            2920.0,
+            2680.0
+          ],
+          [
+            2320.0,
+            2680.0
+          ]
+        ]
+      },
+      "note": "Closure covering the central delta-front crossing used by the normal base->SITE-B route; a detour exists (verified below)."
+    }
+  ],
+  "movementParameters": {
+    "passabilitySlopeThresholdDeg": 20.0,
+    "provenance": "simulated assumption for the Phase 1 connectivity check; Phase 2 must re-state it with justification before route costing uses it"
+  },
+  "connectivityChecks": {
+    "normalBaseToSiteM": {
+      "SITE-A": 1082.8,
+      "SITE-B": 2462.7,
+      "SITE-C": 2726.8
+    },
+    "blockedBaseToSiteM": {
+      "SITE-A": 1082.8,
+      "SITE-B": 2743.9,
+      "SITE-C": 2726.8
+    },
+    "batteryEventOnOutboundCorridor": true,
+    "verdict": "all three sites reachable from base normally; with EVENT-2 closed every site still reachable"
+  },
+  "assumptionIds": [
+    "sim-passability-threshold",
+    "sim-base",
+    "sim-events"
+  ]
+}
