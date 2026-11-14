@@ -119,6 +119,7 @@ const ZH: Record<string, string> = {
   "return route (recomputed)": "返程路线（独立重算）",
   "blocked area (simulated closure)": "封闭区（模拟事件）",
   "grid 20 m/cell · vertical relief ×3 display only": "网格 20 米/格 · 垂直起伏 ×3 仅用于显示",
+  "controls: left-drag pan · right-drag rotate/pitch · wheel zoom": "操作：左键拖动平移 · 右键拖动旋转/俯仰 · 滚轮缩放",
   "units: meters · minutes · simulated 0–100 budget units": "单位：米 · 分钟 · 0–100 模拟预算单位",
   "terrain: MRO CTX DEM/ortho mosaic (Mangold et al. 2021) · sources: {n} records · v{v}":
     "地形：MRO CTX DEM/正射镶嵌（Mangold et al. 2021）· 来源：{n} 条记录 · v{v}",

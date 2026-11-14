@@ -345,6 +345,13 @@ function CameraDirector({
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
+    // user-requested mapping: left-drag pans the view, right-drag orbits
+    // (azimuth + pitch), wheel zooms (three OrbitControls default is the swap)
+    controls.mouseButtons = {
+      LEFT: THREE.MOUSE.PAN,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.ROTATE,
+    };
     const pose = overviewPose(t, 400);
     camera.position.set(pose.position.x, pose.position.y, pose.position.z);
     controls.target.set(pose.target.x, pose.target.y, pose.target.z);

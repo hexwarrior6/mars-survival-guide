@@ -577,6 +577,7 @@ export function App(): JSX.Element {
             {t("blocked area (simulated closure)")}
           </span>
           <span className="north">N ↑</span>
+          <span>{t("controls: left-drag pan · right-drag rotate/pitch · wheel zoom")}</span>
           <span>{t("grid 20 m/cell · vertical relief ×3 display only")}</span>
           <span>{t("units: meters · minutes · simulated 0–100 budget units")}</span>
           <span className="units">
