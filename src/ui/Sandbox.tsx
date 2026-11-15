@@ -77,6 +77,7 @@ import { LabelLayout, type LabelAnchor } from "./LabelLayout.js";
 import { getTerrainLook } from "./terrainLook.js";
 import { createFieldTexture, FIELD_MAX_MINUTES, updateFieldTexture } from "./fieldMask.js";
 import { Dust, PostFXGate, Sky, SUN_DIR } from "./SceneDressing.js";
+import { RegionalPlane } from "./RegionalPlane.js";
 import { MarsScene, type MarsPhase } from "./MarsScene.js";
 import type { MissionLocation } from "../domain/missions.js";
 import { Boulders, HelmetCam } from "./HelmetCam.js";
@@ -84,6 +85,7 @@ import type { Lang } from "./i18n.js";
 
 const LIFT_M = 1.5; // routes render 1.5 m above ground (display only)
 const EASE = (x: number): number => x * x * (3 - 2 * x);
+
 
 /** Terrain plate. Uses the baked display surface when the loader produced one
  * (colour + long shadows + micro-relief normals) and falls back to the raw
@@ -104,7 +106,7 @@ function TerrainMesh({
   fieldOn: { value: number };
   /** reachable walk-minutes available right now, in field units */
   fieldThreshold: { value: number };
-  /** 0 = raw data grid, 1 = full display surface (landing scan) */
+  /** 0..1 task-boundary lock progress; 1 is the stable mission view. */
   scanReveal: { value: number };
 }): JSX.Element {
   const terrain = pkg.terrain;
@@ -148,6 +150,7 @@ function TerrainMesh({
     return geo;
   }, [terrain, t]);
 
+
   const material = useMemo(() => {
     /** shared display injection: returnable-range tint + (baked path only) grain */
     const inject = (shader: THREE.WebGLProgramParametersWithUniforms, withGrain: boolean): void => {
@@ -189,7 +192,18 @@ function TerrainMesh({
         roughness: 0.93,
         metalness: 0,
       });
-      plain.onBeforeCompile = (shader) => inject(shader, false);
+      plain.onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            "#include <common>",
+            "#include <common>\nvarying vec3 vWPos;",
+          )
+          .replace(
+            "#include <begin_vertex>",
+            "#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;",
+          );
+        inject(shader, false);
+      };
       plain.customProgramCacheKey = () => "sandbox-terrain-plain-field";
       return plain;
     }
@@ -207,9 +221,12 @@ function TerrainMesh({
     material.customProgramCacheKey = () => "sandbox-terrain-grain";
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uScanReveal = scanReveal;
-      shader.uniforms.uScanHalf = { value: (terrain.height * terrain.cellSizeM) / 2 + 160 };
+      shader.uniforms.uScanHalf = { value: new THREE.Vector2((terrain.width - 1) * terrain.cellSizeM / 2, (terrain.height - 1) * terrain.cellSizeM / 2) };
       shader.vertexShader = shader.vertexShader
-        .replace("#include <common>", "#include <common>\nvarying vec3 vWPos;")
+        .replace(
+          "#include <common>",
+          "#include <common>\nvarying vec3 vWPos;",
+        )
         .replace(
           "#include <begin_vertex>",
           "#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;",
@@ -221,7 +238,7 @@ function TerrainMesh({
           `#include <common>
           varying vec3 vWPos;
           uniform float uScanReveal;
-          uniform float uScanHalf;
+          uniform vec2 uScanHalf;
           float h21(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
           float n2(vec2 p){
             vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -239,15 +256,16 @@ function TerrainMesh({
           diffuseColor.rgb *= 0.93 + 0.14 * detail;
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.03, 0.99, 0.95), detail * 0.35);
           if (uScanReveal > 0.001 && uScanReveal < 0.999) {
-            // a bright scan line sweeps the finished surface; the texture is
-            // never replaced, so the landing cannot flip the whole block
-            float front = mix(-uScanHalf, uScanHalf, uScanReveal);
-            float edge = 1.0 - smoothstep(0.0, 150.0, abs(vWPos.z - front));
-            float core = 1.0 - smoothstep(0.0, 28.0, abs(vWPos.z - front));
-            float halo = 1.0 - smoothstep(0.0, 520.0, abs(vWPos.z - front));
-            diffuseColor.rgb += vec3(1.0, 0.55, 0.22) * edge * 1.8;
-            diffuseColor.rgb += vec3(1.0, 0.86, 0.66) * core * 2.6;
-            diffuseColor.rgb += vec3(1.0, 0.5, 0.2) * halo * 0.12;
+            // Lock the data footprint: an amber head travels the perimeter
+            // once while regional context dims, without washing over the photo.
+            vec2 toEdge = uScanHalf - abs(vWPos.xz);
+            float rim = 1.0 - smoothstep(6.0, 38.0, min(toEdge.x, toEdge.y));
+            float angle = atan(vWPos.z / uScanHalf.y, vWPos.x / uScanHalf.x) / 6.2831853 + 0.5;
+            float separation = abs(angle - uScanReveal);
+            separation = min(separation, 1.0 - separation);
+            float head = exp(-separation * separation / 0.002);
+            float envelope = sin(uScanReveal * 3.14159265);
+            diffuseColor.rgb += vec3(1.0, 0.64, 0.28) * rim * envelope * (0.18 + 0.85 * head);
           }
 `,
         );
@@ -257,7 +275,7 @@ function TerrainMesh({
 
   useEffect(() => () => material.dispose(), [material]);
 
-  return <mesh geometry={geometry} material={material} name="terrain" />;
+  return <mesh geometry={geometry} material={material} name="terrain" renderOrder={20} />;
 }
 
 /** structural type for the Line2 handle (geometry.instanceCount drives the unfurl) */
@@ -820,7 +838,7 @@ export function Sandbox({
   introStartedOff: boolean;
   onMarsPick: (id: string) => void;
   onMarsUnavailable: (id: string) => void;
-  onMarsStage: (stage: number) => void;
+  onMarsStage: (stage: number, progress?: number, dist?: number) => void;
   onMarsDone: () => void;
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
@@ -829,6 +847,7 @@ export function Sandbox({
   const fieldOn = useMemo(() => ({ value: 0 }), []);
   const fieldThreshold = useMemo(() => ({ value: 0 }), []);
   const lastField = useRef<CostField | null>(null);
+  const surfaceGroup = useRef<THREE.Group>(null);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   useEffect(() => {
     if (returnable === null) {
@@ -846,6 +865,15 @@ export function Sandbox({
     // dev switch: ?nofield isolates the terrain from the range tint
     fieldOn.value = new URLSearchParams(location.search).has("nofield") ? 0 : 1;
   }, [returnable, fieldMask, fieldOn, fieldThreshold, pkg]);
+
+  // When marsPhase transitions to "off", sync OrbitControls target with zero-jerk continuity
+  useEffect(() => {
+    if (marsPhase === "off" && controlsRef.current) {
+      const end = overviewPose(t, 400);
+      controlsRef.current.target.set(end.target.x, end.target.y, end.target.z);
+      controlsRef.current.update();
+    }
+  }, [marsPhase, t]);
 
   // planned route in world space, used to keep the HTML labels off the plan
   const labelObstacles = useMemo(() => {
@@ -900,6 +928,8 @@ export function Sandbox({
       {/* warm display-only fill from the opposite quarter to lift the cut faces */}
       <directionalLight position={[5200, 1500, 5600]} intensity={0.20} color="#ffcfb2" />
       <Suspense fallback={null}>
+        <group ref={surfaceGroup} name="continuous-mars-surface">
+        <RegionalPlane pkg={pkg} phase={marsPhase} scanReveal={scanReveal} />
         <TerrainMesh
           pkg={pkg}
           t={t}
@@ -908,42 +938,46 @@ export function Sandbox({
           fieldThreshold={fieldThreshold}
           scanReveal={scanReveal}
         />
+        </group>
       </Suspense>
-      {/* display-only cut-away block: side faces + base slab + lit rim.
-          Strata pattern is artistic; geometry anchors are the real DEM edge. */}
-      <BlockSides terrain={pkg.terrain} t={t} />
-      <Markers
-        pkg={pkg}
-        t={t}
-        selectedSiteId={selectedSiteId}
-        overlayRef={overlayRef}
-        lang={lang}
-        showAllLabels={result === null}
-        labelObstacles={labelObstacles}
-        helmet={helmet}
-      />
-      <RouteLines
-        terrain={pkg.terrain}
-        t={t}
-        result={result}
-        strategy={strategy}
-        reducedMotion={reducedMotion}
-        runtimeRef={runtimeRef}
-        locked={lockedRoute === null ? null : {
-          out: lockedRoute.out.map((p) => new THREE.Vector3(p.x, p.y, p.z)),
-          ret: lockedRoute.ret.map((p) => new THREE.Vector3(p.x, p.y, p.z)),
-        }}
-      />
-      {/* mission layer: astronaut walk + closure rectangle + position marker.
-          Was never mounted before (phase-4 gap surfaced by user review). */}
-      <MissionLayer
-        runtimeRef={runtimeRef}
-        hudRef={hudRef}
-        pkg={pkg}
-        t={t}
-        closureActive={closureActive}
-        hidden={helmet}
-      />
+      {/* Markers, routes, and decorations: toggled with 0ms visibility cost */}
+      <group visible={marsPhase === "off"}>
+        {/* display-only cut-away block: side faces + base slab + lit rim.
+            Strata pattern is artistic; geometry anchors are the real DEM edge. */}
+        <BlockSides terrain={pkg.terrain} t={t} />
+        <Markers
+          pkg={pkg}
+          t={t}
+          selectedSiteId={selectedSiteId}
+          overlayRef={overlayRef}
+          lang={lang}
+          showAllLabels={result === null}
+          labelObstacles={labelObstacles}
+          helmet={helmet}
+        />
+        <RouteLines
+          terrain={pkg.terrain}
+          t={t}
+          result={result}
+          strategy={strategy}
+          reducedMotion={reducedMotion}
+          runtimeRef={runtimeRef}
+          locked={lockedRoute === null ? null : {
+            out: lockedRoute.out.map((p) => new THREE.Vector3(p.x, p.y, p.z)),
+            ret: lockedRoute.ret.map((p) => new THREE.Vector3(p.x, p.y, p.z)),
+          }}
+        />
+        <MissionLayer
+          runtimeRef={runtimeRef}
+          hudRef={hudRef}
+          pkg={pkg}
+          t={t}
+          closureActive={closureActive}
+          hidden={helmet}
+        />
+        <Dust />
+        <Boulders pkg={pkg} t={t} route={labelObstacles} />
+      </group>
       <OrbitControls
         ref={controlsRef}
         enabled={marsPhase === "off"}
@@ -953,19 +987,17 @@ export function Sandbox({
         minDistance={350}
         maxDistance={9000}
         maxPolarAngle={Math.PI * 0.46}
-        target={[0, 150, 0]}
+        target={[overviewPose(t, 400).target.x, overviewPose(t, 400).target.y, overviewPose(t, 400).target.z]}
       />
-      <Dust />
-      <Boulders pkg={pkg} t={t} route={labelObstacles} />
       <HelmetCam
         active={helmet}
         runtimeRef={runtimeRef}
         hudRef={hudRef}
         controlsRef={controlsRef}
       />
-      {marsPhase !== "off" && (
-        <Suspense fallback={null}>
+      <Suspense fallback={null}>
           <MarsScene
+            surfaceGroup={surfaceGroup}
             pkg={pkg}
             missions={missions}
             activeMissionId={activeMissionId}
@@ -975,8 +1007,7 @@ export function Sandbox({
             onStage={onMarsStage}
             onDiveDone={onMarsDone}
           />
-        </Suspense>
-      )}
+      </Suspense>
       <PostFXGate reducedMotion={reducedMotion} />
       <CameraDirector
         controlsRef={controlsRef}

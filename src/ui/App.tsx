@@ -64,7 +64,8 @@ export function App(): JSX.Element {
   const [missionId, setMissionId] = useState("jezero");
   const [marsNotice, setMarsNotice] = useState<string | null>(null);
   const [marsStage, setMarsStage] = useState(1);
-  /** landing scan: 0 = raw data grid, 1 = full display surface */
+  const [diveTelemetry, setDiveTelemetry] = useState<{ progress: number; dist: number } | null>(null);
+  /** task-boundary lock: 0..1; also retires regional context on arrival. */
   const scanReveal = useRef({ value: 1 });
   const scanRaf = useRef(0);
   const [webglFailed, setWebglFailed] = useState(false);
@@ -125,7 +126,7 @@ export function App(): JSX.Element {
       scanReveal.current.value = 1;
       return;
     }
-    // a single bright scan line sweeps the finished surface: no texture swap
+    // Trace the task boundary once as the surrounding context retires.
     scanReveal.current.value = 0.001;
     const REVEAL = 2400;
     const t0 = performance.now();
@@ -663,8 +664,8 @@ export function App(): JSX.Element {
     <LangContext.Provider value={{ lang, setLang, t }}>
       <div className={`console${marsPhase === "off" ? "" : " mars-mode"}`}>
         <section className="stage" aria-label="Terrain stage">
-          {/* full-bleed canvas layer + in-canvas labels */}
-          <div className="overlay-labels" ref={overlayRef} style={{ display: show3d ? "block" : "none" }} />
+          {/* full-bleed canvas layer + in-canvas labels (hidden while in orbit/dive to avoid space clutter) */}
+          <div className="overlay-labels" ref={overlayRef} style={{ display: show3d && marsPhase === "off" ? "block" : "none" }} />
           {show3d ? (
             <WebglErrorBoundary
               onFallback={() => {
@@ -697,8 +698,14 @@ export function App(): JSX.Element {
                   introStartedOff={!startOnMars}
                   onMarsPick={pickMission}
                   onMarsUnavailable={pickMission}
-                  onMarsStage={setMarsStage}
+                  onMarsStage={(stage, progress, dist) => {
+                    setMarsStage(stage);
+                    if (progress !== undefined && dist !== undefined) {
+                      setDiveTelemetry({ progress, dist });
+                    }
+                  }}
                   onMarsDone={() => {
+                    setDiveTelemetry(null);
                     setMarsPhase("off");
                     setSelectedSiteId(null);
                     runScan();
@@ -960,29 +967,56 @@ export function App(): JSX.Element {
             {marsPhase === "dive" && (
               <div className="mars-loading">
                 <div className="row">
-                  <span>RESOLVING SURFACE</span>
+                  <span>
+                    {lang === "zh"
+                      ? `${marsStage}/${DIVE_STAGES} · ${["火星", "区域地表", "3D 任务地点"][marsStage - 1]}`
+                      : `${marsStage}/${DIVE_STAGES} · ${["MARS", "REGIONAL SURFACE", "3D MISSION SITE"][marsStage - 1]}`}
+                  </span>
                   <b>
-                    {Math.min(DIVE_STAGES, Math.max(1, marsStage))} / {DIVE_STAGES}
+                    {diveTelemetry
+                      ? diveTelemetry.dist > 1000000
+                        ? `RANGE ${(diveTelemetry.dist / 1000).toFixed(0)} km`
+                        : diveTelemetry.dist > 10000
+                          ? `RANGE ${(diveTelemetry.dist / 1000).toFixed(1)} km`
+                          : `RANGE ${Math.round(diveTelemetry.dist)} m`
+                      : "RANGE —"}
                   </b>
                 </div>
                 <div className="bar">
                   <i
                     style={{
-                      width: `${(Math.min(DIVE_STAGES, Math.max(1, marsStage)) / DIVE_STAGES) * 100}%`,
+                      width: `${diveTelemetry ? Math.min(100, Math.max(0, diveTelemetry.progress * 100)) : 0}%`,
+                      transition: "none",
                     }}
                   />
                 </div>
-                <em>APPROACH · STAGED ZOOM</em>
+                <em>
+                  {lang === "zh"
+                    ? marsStage === 1
+                      ? "从火星高轨俯冲 · 锁定杰泽罗陨石坑…"
+                      : marsStage === 2
+                        ? "区域卫星解析 · 60 km 区域地表全景清晰展现…"
+                        : "接近任务地点 · 锁定地形边界…"
+                    : marsStage === 1
+                      ? "ORBITAL DIVE · LOCKING JEZERO CRATER…"
+                      : marsStage === 2
+                        ? "REGIONAL TILE RESOLUTION · 60 KM CRATER IN VIEW…"
+                        : "FINAL APPROACH · LOCKING TASK FOOTPRINT…"}
+                </em>
               </div>
             )}
             {marsNotice !== null && <div className="mars-notice">{marsNotice}</div>}
             <div className="mars-hint">
               <span>
-                {marsHint(
-                  lang,
-                  (missions ?? FALLBACK_MISSIONS).filter((m) => m.package).length,
-                  (missions ?? FALLBACK_MISSIONS).length,
-                )}
+                {marsPhase === "dive"
+                  ? lang === "zh"
+                    ? "渐进缩放降落中 · 解析杰泽罗地表…"
+                    : "Progressive staged descent in progress · resolving Jezero surface…"
+                  : marsHint(
+                      lang,
+                      (missions ?? FALLBACK_MISSIONS).filter((m) => m.package).length,
+                      (missions ?? FALLBACK_MISSIONS).length,
+                    )}
               </span>
               <button
                 type="button"

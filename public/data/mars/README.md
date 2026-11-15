@@ -43,3 +43,17 @@ anchor, and the 2D plan view never uses it.
 
 The planning package itself remains `public/data/jezero/`; this folder is not
 part of its checksum set, so `npm run validate:data` is unaffected.
+
+## Continuous approach geometry
+
+The regional image is mapped to a persistent, opaque 60 km surround with an
+opening at the local DEM's outer cell centres (±2550 m for this package).
+The mission DEM remains at its final display height throughout the camera
+approach. All four regional seams sample the measured DEM boundary; a fixed
+3 km display-only apron outside the package joins those heights to Mars
+curvature. This apron is an artistic continuity treatment, not measured
+regional elevation. Neither surface changes height with camera range. The regional image
+gently resolves on approach, darkens near the mission, and fades away during
+the arrival boundary-lock effect. It is hidden in the stable mission view,
+including skipped introductions and reduced-motion mode. The regional UVs retain the
++6.1 km crop offset and north-up orientation.

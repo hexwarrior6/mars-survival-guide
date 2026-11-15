@@ -29,6 +29,7 @@ export function SpaceBackdrop({
       uTime: { value: 0 },
       uSun: { value: SUN_DIR.clone() },
       uFade: { value: 1 },
+      uZoom: { value: 1 },
     }),
     [],
   );
@@ -53,8 +54,21 @@ export function SpaceBackdrop({
         uniforms={uniforms}
         vertexShader={/* glsl */ `
           varying vec3 vDir;
+          uniform float uZoom;
+
           void main() {
-            vDir = position;
+            vec3 viewDir = (modelViewMatrix * vec4(position, 0.0)).xyz;
+            viewDir.xy /= max(uZoom, 0.001);
+            mat3 R = mat3(modelViewMatrix);
+            vec3 c0 = normalize(R[0]);
+            vec3 c1 = normalize(R[1]);
+            vec3 c2 = normalize(R[2]);
+            mat3 invRot = mat3(
+              vec3(c0.x, c1.x, c2.x),
+              vec3(c0.y, c1.y, c2.y),
+              vec3(c0.z, c1.z, c2.z)
+            );
+            vDir = invRot * viewDir;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }
         `}

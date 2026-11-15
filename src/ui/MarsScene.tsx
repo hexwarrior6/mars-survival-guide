@@ -1,17 +1,4 @@
-/** One-take Mars approach: a true-scale Viking globe under the same camera that
- * frames the loaded region. No second canvas and no cut — the camera descends
- * in five staged pushes (with short holds, like map tiles resolving) while the
- * globe fades into the terrain.
- *
- * Locations come from public/data/missions.json. An entry with a terrain
- * package can be entered; the others are drawn as future mission areas. The
- * active package's lat/lon bounds decide how the globe is oriented, so adding
- * another package with its own bounds is all it takes to make its pin real.
- *
- * The globe can be dragged to rotate in the orbit state; it recentres during
- * the first moments of the dive. Display context only: nothing here feeds
- * routing, timing or resources.
- */
+/** Continuous Mars → regional imagery → local 3D terrain approach. */
 
 import { useEffect, useMemo, useRef } from "react";
 import type { JSX } from "react";
@@ -24,57 +11,21 @@ import { overviewPose, worldTransform } from "../domain/world.js";
 import type { Lang } from "./i18n.js";
 import { SpaceBackdrop } from "./SpaceBackdrop.js";
 import { SUN_DIR } from "./SceneDressing.js";
-import { RegionalPlane } from "./RegionalPlane.js";
+import { MARS_RADIUS, MARS_CENTRE, DIVE_SECONDS, smoothstep, smootherstep, latLonToPoint, globeOrientation, approachStage, approachPose } from "./marsApproach.js";
+export { MARS_RADIUS, MARS_CENTRE } from "./marsApproach.js";
 
 const GLOBE_TEXTURE = "/data/mars/viking_mdim21_color_3840.jpg";
 /** true Mars radius in metres: the globe and the terrain share one scale */
-export const MARS_RADIUS = 3396190;
+
 export const MARS_ORBIT_DIST = MARS_RADIUS * 3.0;
 /** oblique start: 29° off the pole, 34° of azimuth, like holding a globe */
 const ORBIT_POLAR = 0.5;
 const ORBIT_AZIMUTH = 0.6;
-export const MARS_CENTRE = new THREE.Vector3(0, -MARS_RADIUS, 0);
-/** MDIM 2.1 is a 0–360 east product displayed from 180°W */
-const LON_ORIGIN_DEG = 180;
-/** five zoom levels with a short hold at each one, like tiles resolving */
+
 export const DIVE_STAGES = 3;
-const HOLD_SEC = 0.18;
-const DIVE_SECONDS = 4.8;
-const SEG_SEC = (DIVE_SECONDS - HOLD_SEC * (DIVE_STAGES - 1)) / DIVE_STAGES;
-const EASE = (x: number): number => x * x * (3 - 2 * x);
-const smoothstep = (e0: number, e1: number, x: number): number => {
-  const t = Math.min(Math.max((x - e0) / (e1 - e0), 0), 1);
-  return t * t * (3 - 2 * t);
-};
-const UP = new THREE.Vector3(0, 1, 0);
 const IDENTITY = new THREE.Quaternion();
 
-/** 0..1 staged progress: each segment eases, then holds before the next push */
-function stagedProgress(elapsed: number): number {
-  let t = elapsed;
-  for (let i = 0; i < DIVE_STAGES; i++) {
-    if (t < SEG_SEC) return (i + EASE(t / SEG_SEC)) / DIVE_STAGES;
-    t -= SEG_SEC;
-    if (i < DIVE_STAGES - 1) {
-      if (t < HOLD_SEC) return (i + 1) / DIVE_STAGES;
-      t -= HOLD_SEC;
-    }
-  }
-  return 1;
-}
-
 export type MarsPhase = "orbit" | "dive" | "off";
-
-/** lat/lon -> point on the sphere, matching Three's SphereGeometry UV layout */
-function latLonToPoint(latDeg: number, lonDeg: number, r: number): THREE.Vector3 {
-  const lat = (latDeg * Math.PI) / 180;
-  const lon = ((lonDeg + LON_ORIGIN_DEG) * Math.PI) / 180;
-  return new THREE.Vector3(
-    -r * Math.cos(lat) * Math.cos(lon),
-    r * Math.sin(lat),
-    r * Math.cos(lat) * Math.sin(lon),
-  );
-}
 
 /** near/far follow the dive: a 1e4 depth ratio at every altitude, no log buffer */
 function setClip(camera: THREE.PerspectiveCamera, dist: number): void {
@@ -87,7 +38,66 @@ function setClip(camera: THREE.PerspectiveCamera, dist: number): void {
   }
 }
 
+function MarsPin({
+  mission,
+  pos,
+  active,
+  onPick,
+  onUnavailable,
+  dragQ,
+  spin,
+}: {
+  mission: MissionLocation;
+  pos: THREE.Vector3;
+  active: boolean;
+  onPick: (id: string) => void;
+  onUnavailable: (id: string) => void;
+  dragQ: React.MutableRefObject<THREE.Quaternion>;
+  spin: THREE.Quaternion;
+}): JSX.Element {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const camera = useThree((s) => s.camera);
+  const pinDir = useRef(new THREE.Vector3());
+  const camDir = useRef(new THREE.Vector3());
+  const lastVis = useRef(true);
+
+  useFrame(() => {
+    // pin direction from Mars center in world space:
+    pinDir.current.copy(pos).applyQuaternion(spin).applyQuaternion(dragQ.current);
+    camDir.current.copy(camera.position).sub(MARS_CENTRE);
+    const isFront = pinDir.current.dot(camDir.current) > 0;
+    if (isFront !== lastVis.current) {
+      lastVis.current = isFront;
+      if (wrapRef.current) {
+        wrapRef.current.style.display = isFront ? "block" : "none";
+      }
+    }
+  });
+
+  const available = mission.package === true;
+
+  return (
+    <Html position={[pos.x, pos.y, pos.z]} center zIndexRange={[40, 40]}>
+      <div ref={wrapRef} style={{ pointerEvents: "auto" }}>
+        <button
+          type="button"
+          className={`mars-pin${available ? "" : " is-dim"}${active ? " is-active" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (available) onPick(mission.id);
+            else onUnavailable(mission.id);
+          }}
+        >
+          <b>{mission.name}</b>
+          <span>{available ? mission.label : `${mission.label} · no package`}</span>
+        </button>
+      </div>
+    </Html>
+  );
+}
+
 export function MarsScene({
+  surfaceGroup,
   pkg,
   missions,
   activeMissionId,
@@ -97,6 +107,7 @@ export function MarsScene({
   onStage,
   onDiveDone,
 }: {
+  surfaceGroup: React.RefObject<THREE.Group | null>;
   pkg: LoadedPackage;
   missions: MissionLocation[];
   activeMissionId: string;
@@ -104,7 +115,7 @@ export function MarsScene({
   onPick: (id: string) => void;
   onUnavailable: (id: string) => void;
   /** 1-based zoom level while diving, for the loading readout */
-  onStage: (stage: number) => void;
+  onStage: (stage: number, progress?: number, dist?: number) => void;
   onDiveDone: () => void;
 }): JSX.Element {
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
@@ -132,11 +143,7 @@ export function MarsScene({
   // point under the camera, and the terrain plate is tangent there
   const lat = (pkg.region.boundsLatLon.north + pkg.region.boundsLatLon.south) / 2;
   const lon = (pkg.region.boundsLatLon.east + pkg.region.boundsLatLon.west) / 2;
-  const normal = useMemo(() => latLonToPoint(lat, lon, 1).normalize(), [lat, lon]);
-  const spin = useMemo(
-    () => new THREE.Quaternion().setFromUnitVectors(normal, UP),
-    [normal],
-  );
+  const spin = useMemo(() => globeOrientation(lat, lon), [lat, lon]);
 
   const skyMesh = useRef<THREE.Mesh>(null);
   const globeMat = useRef<THREE.ShaderMaterial | null>(null);
@@ -149,14 +156,13 @@ export function MarsScene({
   const zoom = useRef({ current: MARS_ORBIT_DIST, target: MARS_ORBIT_DIST });
   const orbitDir = useRef(new THREE.Vector3(0, 1, 0));
   const stageRef = useRef(-1);
+  const telemetryTime = useRef(0);
   const dive = useRef<{
     elapsed: number;
     from: THREE.Vector3;
     to: THREE.Vector3;
-    fromT: THREE.Vector3;
     toT: THREE.Vector3;
-    dist0: number;
-    dist1: number;
+    initialDragQ: THREE.Quaternion;
     done: boolean;
   } | null>(null);
 
@@ -181,17 +187,13 @@ export function MarsScene({
 
     const ball = (e: PointerEvent): THREE.Vector3 => {
       const rect = el.getBoundingClientRect();
-      const d = camera.position.distanceTo(MARS_CENTRE);
-      const f = rect.height / 2 / Math.tan((camera.fov * Math.PI) / 360);
-      const pr = Math.max(1, (f * MARS_RADIUS) / Math.sqrt(Math.max(d * d - MARS_RADIUS * MARS_RADIUS, 1)));
-      let x = (e.clientX - (rect.left + rect.width / 2)) / pr;
-      let y = (e.clientY - (rect.top + rect.height / 2)) / pr;
-      const len = Math.hypot(x, y);
-      if (len > 1) {
-        x /= len;
-        y /= len;
-      }
-      return new THREE.Vector3(x, -y, Math.sqrt(Math.max(1 - x * x - y * y, 0))).normalize();
+      const r = Math.min(rect.width, rect.height) * 0.45;
+      const x = (e.clientX - (rect.left + rect.width / 2)) / r;
+      const y = (e.clientY - (rect.top + rect.height / 2)) / r;
+      const d2 = x * x + y * y;
+      // hyperbolic roll off outer edge ensures zero sticking or locking when dragging outside the disk
+      const z = d2 <= 0.5 ? Math.sqrt(1.0 - d2) : 0.5 / Math.sqrt(d2);
+      return new THREE.Vector3(x, -y, z).normalize();
     };
 
     const down = (e: PointerEvent): void => {
@@ -223,10 +225,10 @@ export function MarsScene({
       e.preventDefault();
       // normalise line/page deltas: some wheels report 3 instead of ~120
       const d = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
-      const k = Math.exp(d * 0.0018);
+      const k = Math.exp(d * 0.0015);
       zoom.current.target = Math.min(
         Math.max(zoom.current.target * k, MARS_RADIUS * 1.15),
-        MARS_RADIUS * 4.2,
+        MARS_RADIUS * 3.8,
       );
     };
     el.addEventListener("pointerdown", down);
@@ -266,6 +268,7 @@ export function MarsScene({
     opacity.current = 1;
     dive.current = null;
     stageRef.current = -1;
+    telemetryTime.current = 0;
   }, [phase, camera]);
 
   // ---- camera: dive to the loaded region ---------------------------------
@@ -273,22 +276,20 @@ export function MarsScene({
     if (phase !== "dive") return;
     const end = overviewPose(t, 400);
     const from = camera.position.clone();
-    const fromT = new THREE.Vector3(0, 0, 0);
     const to = new THREE.Vector3(end.position.x, end.position.y, end.position.z);
     const toT = new THREE.Vector3(end.target.x, end.target.y, end.target.z);
     dive.current = {
       elapsed: 0,
       from,
       to,
-      fromT,
       toT,
-      dist0: from.distanceTo(fromT),
-      dist1: to.distanceTo(toT),
+      initialDragQ: dragQ.current.clone(),
       done: false,
     };
   }, [phase, t, camera]);
 
   useFrame((_, delta) => {
+    const mat = globeMat.current;
     if (phase === "orbit") {
       const z = zoom.current;
       // clamp the frame delta: a React re-render hitch must not become a zoom
@@ -298,45 +299,43 @@ export function MarsScene({
       camera.position.copy(orbitDir.current).multiplyScalar(z.current).add(MARS_CENTRE);
       camera.lookAt(MARS_CENTRE);
       setClip(camera, z.current);
-
     }
     if (center.current !== null) center.current.quaternion.copy(dragQ.current);
     const d = dive.current;
     if (phase === "dive" && d !== null && !d.done) {
-      d.elapsed = Math.min(DIVE_SECONDS, d.elapsed + delta);
-      const k = stagedProgress(d.elapsed);
-      // bring the clicked mission back under the camera as we leave
-      dragQ.current.slerp(IDENTITY, 1 - Math.exp(-delta * 7));
-
-      const dist = Math.exp(Math.log(d.dist0) + (Math.log(d.dist1) - Math.log(d.dist0)) * k);
-      // the path is anchored on the surface point, so the camera never enters
-      // the globe; the look target swings from the globe centre (the orbit
-      // view) to the terrain over the first 30% of the dive
-      const look = MARS_CENTRE.clone().lerp(d.toT, smoothstep(0, 0.3, k));
-      const dir = d.from
-        .clone()
-        .sub(d.fromT)
-        .normalize()
-        .lerp(d.to.clone().sub(d.fromT).normalize(), smoothstep(0.1, 0.98, k))
-        .normalize();
-      camera.position.copy(d.fromT).addScaledVector(dir, dist);
-      camera.lookAt(look);
-      setClip(camera, dist);
-      // the globe gives way to the raw data grid before the texture blurs
-      opacity.current = smoothstep(Math.log(30000), Math.log(70000), Math.log(dist));
-
-      const stage = Math.min(DIVE_STAGES, Math.floor(k * DIVE_STAGES) + 1);
-      if (stage !== stageRef.current) {
+      // A stalled frame must not skip over an entire geographical scale.
+      d.elapsed = Math.min(DIVE_SECONDS, d.elapsed + Math.min(delta, 1 / 30));
+      const progress = d.elapsed / DIVE_SECONDS;
+      dragQ.current.copy(d.initialDragQ).slerp(IDENTITY, smootherstep(progress / 0.35));
+      if (center.current) center.current.quaternion.copy(dragQ.current);
+      const pose = approachPose(d.from, d.to, d.toT, progress);
+      camera.position.copy(pose.position);
+      camera.lookAt(pose.target);
+      setClip(camera, pose.distance);
+      opacity.current = smoothstep(Math.log(18000), Math.log(65000), Math.log(camera.position.length()));
+      // Keep React/HUD work out of most animation frames.
+      const stage = approachStage(camera.position.length());
+      if (stage !== stageRef.current || d.elapsed - telemetryTime.current >= 0.1 || progress === 1) {
         stageRef.current = stage;
-        onStage(stage);
+        telemetryTime.current = d.elapsed;
+        onStage(stage, progress, pose.distance);
       }
+
       if (d.elapsed >= DIVE_SECONDS) {
         d.done = true;
         onDiveDone();
       }
     }
 
-    const mat = globeMat.current;
+    // Terrain and its regional surround share the globe's rigid transform.
+    // Geometry remains fixed; cosmetic context fading never changes its pose.
+    const surface = surfaceGroup.current;
+    if (surface) {
+      const q = phase === "off" ? IDENTITY : dragQ.current;
+      surface.quaternion.copy(q);
+      surface.position.copy(MARS_CENTRE).sub(MARS_CENTRE.clone().applyQuaternion(q));
+    }
+
     if (mat !== null) {
       const o = opacity.current;
       (mat.uniforms.uOpacity as { value: number }).value = o;
@@ -357,8 +356,23 @@ export function MarsScene({
       sm.quaternion.copy(dragQ.current);
       const r = Math.max(camera.near * 2.5 + 400, 2000);
       sm.scale.setScalar(Math.min(r, camera.far * 0.6));
+
+      const mat = sm.material as THREE.ShaderMaterial | undefined;
+      if (mat?.uniforms?.uZoom) {
+        if (phase === "orbit") {
+          const k = (MARS_ORBIT_DIST - zoom.current.current) / (MARS_ORBIT_DIST - MARS_RADIUS * 1.15);
+          // subtle zoom: up to +10% magnification at closest zoom, smoothly linked without stutter
+          (mat.uniforms.uZoom as { value: number }).value =
+            1.0 + Math.max(-0.06, Math.min(0.12, k * 0.1));
+        } else if (phase === "dive" && d !== null) {
+          const diveProgress = Math.min(1, d.elapsed / (DIVE_SECONDS * 0.6));
+          (mat.uniforms.uZoom as { value: number }).value = 1.08 + diveProgress * 0.07;
+        } else {
+          (mat.uniforms.uZoom as { value: number }).value = 1.1;
+        }
+      }
     }
-  });
+  }, -2);
 
   // leaving the stage restores the terrain's clip planes (skip from orbit)
   useEffect(() => {
@@ -372,9 +386,8 @@ export function MarsScene({
 
   return (
     <>
-      <SpaceBackdrop meshRef={skyMesh} />
-      <RegionalPlane />
-      <group ref={center} position={[0, -MARS_RADIUS, 0]} name="mars-globe">
+      {phase !== "off" && <SpaceBackdrop meshRef={skyMesh} />}
+      <group ref={center} position={[0, -MARS_RADIUS, 0]} name="mars-globe" visible={phase !== "off"}>
         <group ref={globeGroup} quaternion={spin}>
           <mesh ref={globeMesh}>
             <sphereGeometry args={[MARS_RADIUS, 192, 128]} />
@@ -382,15 +395,28 @@ export function MarsScene({
               ref={globeMat}
               uniforms={globeUniforms}
               transparent
+              depthWrite={false}
               fog={false}
               toneMapped={false}
               vertexShader={/* glsl */ `
                 varying vec2 vUv;
                 varying vec3 vN;
+                varying vec3 vT;
+                varying vec3 vB;
                 varying vec3 vP;
                 void main() {
                   vUv = uv;
-                  vN = normalize(mat3(modelMatrix) * normal);
+                  vec3 objN = normalize(position);
+                  vec3 objT = normalize(vec3(-position.z, 0.0, position.x));
+                  if (abs(position.y) > 3396000.0) {
+                    objT = vec3(1.0, 0.0, 0.0);
+                  }
+                  vec3 objB = cross(objN, objT);
+
+                  vN = normalize(mat3(modelMatrix) * objN);
+                  vT = normalize(mat3(modelMatrix) * objT);
+                  vB = normalize(mat3(modelMatrix) * objB);
+
                   vec4 wp = modelMatrix * vec4(position, 1.0);
                   vP = wp.xyz;
                   gl_Position = projectionMatrix * viewMatrix * wp;
@@ -399,6 +425,8 @@ export function MarsScene({
               fragmentShader={/* glsl */ `
                 varying vec2 vUv;
                 varying vec3 vN;
+                varying vec3 vT;
+                varying vec3 vB;
                 varying vec3 vP;
                 uniform sampler2D uMap;
                 uniform sampler2D uNormal;
@@ -407,17 +435,12 @@ export function MarsScene({
 
                 void main() {
                   vec3 base = texture2D(uMap, vUv).rgb;
-                  // keep the photo, just a little richer
+                  // keep the photo, rich in colour and contrast
                   base = mix(vec3(dot(base, vec3(0.299, 0.587, 0.114))), base, 1.16) * 1.10;
-                  vec3 N = normalize(vN);
-                  vec3 T = normalize(cross(vec3(0.0, 1.0, 0.0), N));
-                  vec3 B = normalize(cross(N, T));
+
                   vec3 nm = texture2D(uNormal, vUv).rgb * 2.0 - 1.0;
-                  vec3 Nw = normalize(T * nm.x + B * nm.y + N * nm.z);
-                  // the tangent frame degenerates at the poles; fade the bump
-                  // there so the seam cannot shimmer
-                  float pole = smoothstep(0.02, 0.14, 1.0 - abs(N.y));
-                  Nw = normalize(mix(N, Nw, pole));
+                  // deep, crisp relief on craters, valleys and surface features
+                  vec3 Nw = normalize(vT * nm.x * 2.2 + vB * nm.y * 2.2 + vN * nm.z);
 
                   vec3 V = normalize(cameraPosition - vP);
                   float ndl = dot(Nw, normalize(uSun));
@@ -431,7 +454,7 @@ export function MarsScene({
                   float spec = pow(max(dot(Nw, H), 0.0), 28.0) * 0.05 * day;
                   col += vec3(1.0, 0.82, 0.66) * spec;
 
-                  float fres = pow(1.0 - max(dot(N, V), 0.0), 4.0);
+                  float fres = pow(1.0 - max(dot(vN, V), 0.0), 4.0);
                   col += vec3(1.0, 0.5, 0.26) * fres * 0.10;
 
                   gl_FragColor = vec4(col, uOpacity);
@@ -472,29 +495,18 @@ export function MarsScene({
           </mesh>
 
           {pinsVisible &&
-            pins.map(({ mission, pos }) => {
-              const available = mission.package === true;
-              const active = mission.id === activeMissionId;
-              return (
-                <Html
-                  key={mission.id}
-                  position={[pos.x, pos.y, pos.z]}
-                  center
-                  occlude={[globeMesh]}
-                  zIndexRange={[40, 40]}
-                  style={{ pointerEvents: "auto" }}
-                >
-                  <button
-                    type="button"
-                    className={`mars-pin${available ? "" : " is-dim"}${active ? " is-active" : ""}`}
-                    onClick={() => (available ? onPick(mission.id) : onUnavailable(mission.id))}
-                  >
-                    <b>{mission.name}</b>
-                    <span>{available ? mission.label : `${mission.label} · no package`}</span>
-                  </button>
-                </Html>
-              );
-            })}
+            pins.map(({ mission, pos }) => (
+              <MarsPin
+                key={mission.id}
+                mission={mission}
+                pos={pos}
+                active={mission.id === activeMissionId}
+                onPick={onPick}
+                onUnavailable={onUnavailable}
+                dragQ={dragQ}
+                spin={spin}
+              />
+            ))}
         </group>
       </group>
     </>

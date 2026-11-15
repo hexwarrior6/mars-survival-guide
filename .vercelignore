@@ -1,0 +1,12 @@
+.git
+.agents
+.codex
+.qoder
+.zcode
+.venv
+cache
+node_modules
+docs
+skills-lock.json
+lookdev.html
+*.log
