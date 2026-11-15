@@ -392,7 +392,7 @@ export function MarsScene({
                 void main() {
                   vec3 base = texture2D(uMap, vUv).rgb;
                   // keep the photo, just a little richer
-                  base = mix(vec3(dot(base, vec3(0.299, 0.587, 0.114))), base, 1.12) * 1.04;
+                  base = mix(vec3(dot(base, vec3(0.299, 0.587, 0.114))), base, 1.16) * 1.10;
                   vec3 N = normalize(vN);
                   vec3 T = normalize(cross(vec3(0.0, 1.0, 0.0), N));
                   vec3 B = normalize(cross(N, T));
@@ -405,7 +405,7 @@ export function MarsScene({
                   // a soft camera-side fill keeps the visible face readable
                   // while the terminator stays on the limb
                   float fill = 0.5 + 0.5 * dot(Nw, V);
-                  vec3 col = base * (0.10 + 1.0 * day + 0.55 * fill);
+                  vec3 col = base * (0.14 + 1.04 * day + 0.66 * fill);
 
                   vec3 H = normalize(normalize(uSun) + V);
                   float spec = pow(max(dot(Nw, H), 0.0), 28.0) * 0.05 * day;
