@@ -14,6 +14,19 @@ the earlier 2048-wide copy and is kept for reference.)
 - **Processing:** resized to 3840 × 1920 with Lanczos, no colour grading,
   reprojection or feature retouching. The 2048-wide copy was resized the same way.
 
+## Regional LOD (Jezero)
+
+`jezero_region_60km.jpg` — 2048 × 2048, colourised with the sandbox's own ramp.
+
+- **Source:** the same `M20_JezeroCrater_CTXortho_mosaic_5m.tif` used to build
+  `public/data/jezero/` (CTX ortho mosaic ~5 m/px, NASA/JPL/USGS).
+- **Crop:** 60 × 60 km centred 6.1 km east of the 5.12 km package centre (the
+  crop is shifted east so it stays inside the published mosaic); the package
+  centre sits 6.1 km west of the crop centre, which is why the decal is offset
+  by +6.1 km in world X.
+- **Processing:** averaged to 2048² (29 m/px), then the same luma stretch / colour
+  ramp as `src/ui/terrainLook.ts`. No generated detail.
+
 ## Role in the app
 
 Display context only. The globe is the opening "from Mars" stage; the Jezero

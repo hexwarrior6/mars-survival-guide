@@ -65,7 +65,7 @@ export function App(): JSX.Element {
   const [marsNotice, setMarsNotice] = useState<string | null>(null);
   const [marsStage, setMarsStage] = useState(1);
   /** landing scan: 0 = raw data grid, 1 = full display surface */
-  const scanReveal = useRef({ value: startOnMars ? 0 : 1 });
+  const scanReveal = useRef({ value: 1 });
   const scanRaf = useRef(0);
   const [webglFailed, setWebglFailed] = useState(false);
   const [loopMode, setLoopMode] = useState<LoopMode>("raf");
@@ -125,13 +125,23 @@ export function App(): JSX.Element {
       scanReveal.current.value = 1;
       return;
     }
-    scanReveal.current.value = 0;
+    // first turn the finished surface back into the data grid (180 ms), then
+    // sweep it forward again over 2 s
+    const PRE = 180;
+    const REVEAL = 2000;
     const t0 = performance.now();
     const tick = (): void => {
-      const k = Math.min(1, (performance.now() - t0) / 2000);
-      const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-      scanReveal.current.value = e;
-      scanRaf.current = k < 1 ? requestAnimationFrame(tick) : 0;
+      const ms = performance.now() - t0;
+      let done = false;
+      if (ms < PRE) {
+        scanReveal.current.value = 1 - ms / PRE;
+      } else {
+        const k = Math.min(1, (ms - PRE) / REVEAL);
+        const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        scanReveal.current.value = e;
+        done = k >= 1;
+      }
+      scanRaf.current = done ? 0 : requestAnimationFrame(tick);
     };
     scanRaf.current = requestAnimationFrame(tick);
   };
@@ -772,7 +782,7 @@ export function App(): JSX.Element {
               setMarsNotice(null);
               setMarsStage(1);
               stopScan();
-              scanReveal.current.value = 0;
+              scanReveal.current.value = 1;
               setMarsPhase("orbit");
             }}
           >

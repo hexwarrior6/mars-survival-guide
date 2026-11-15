@@ -23,6 +23,7 @@ import type { MissionLocation } from "../domain/missions.js";
 import { overviewPose, worldTransform } from "../domain/world.js";
 import type { Lang } from "./i18n.js";
 import { SpaceBackdrop } from "./SpaceBackdrop.js";
+import { RegionalPlane } from "./RegionalPlane.js";
 
 const GLOBE_TEXTURE = "/data/mars/viking_mdim21_color_3840.jpg";
 /** true Mars radius in metres: the globe and the terrain share one scale */
@@ -37,9 +38,9 @@ export const MARS_ORBIT_POS: [number, number, number] = [
 /** MDIM 2.1 is a 0–360 east product displayed from 180°W */
 const LON_ORIGIN_DEG = 180;
 /** five zoom levels with a short hold at each one, like tiles resolving */
-export const DIVE_STAGES = 5;
-const HOLD_SEC = 0.24;
-const DIVE_SECONDS = 8.4;
+export const DIVE_STAGES = 3;
+const HOLD_SEC = 0.18;
+const DIVE_SECONDS = 4.8;
 const SEG_SEC = (DIVE_SECONDS - HOLD_SEC * (DIVE_STAGES - 1)) / DIVE_STAGES;
 const EASE = (x: number): number => x * x * (3 - 2 * x);
 const smoothstep = (e0: number, e1: number, x: number): number => {
@@ -297,6 +298,7 @@ export function MarsScene({
   return (
     <>
       <SpaceBackdrop />
+      <RegionalPlane />
       <group ref={center} position={[0, -MARS_RADIUS, 0]} name="mars-globe">
         <group ref={globeGroup} quaternion={spin}>
           <mesh ref={globeMesh}>
