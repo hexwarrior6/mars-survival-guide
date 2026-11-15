@@ -23,6 +23,7 @@ import type { MissionLocation } from "../domain/missions.js";
 import { overviewPose, worldTransform } from "../domain/world.js";
 import type { Lang } from "./i18n.js";
 import { SpaceBackdrop } from "./SpaceBackdrop.js";
+import { SUN_DIR } from "./SceneDressing.js";
 import { RegionalPlane } from "./RegionalPlane.js";
 
 const GLOBE_TEXTURE = "/data/mars/viking_mdim21_color_3840.jpg";
@@ -111,8 +112,19 @@ export function MarsScene({
   const texture = useTexture(GLOBE_TEXTURE);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
+  const normalMap = useTexture("/data/mars/mars_normal_1024.png");
+  normalMap.colorSpace = THREE.NoColorSpace;
   // stable uniforms: a fresh object each render would reset the fade
   const hazeUniforms = useMemo(() => ({ uOpacity: { value: 1 } }), []);
+  const globeUniforms = useMemo(
+    () => ({
+      uMap: { value: texture },
+      uNormal: { value: normalMap },
+      uSun: { value: SUN_DIR.clone() },
+      uOpacity: { value: 1 },
+    }),
+    [texture, normalMap],
+  );
 
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
   // the loaded package defines where the globe must point: its centre is the
@@ -125,7 +137,7 @@ export function MarsScene({
     [normal],
   );
 
-  const globeMat = useRef<THREE.MeshStandardMaterial | null>(null);
+  const globeMat = useRef<THREE.ShaderMaterial | null>(null);
   const hazeMat = useRef<THREE.ShaderMaterial | null>(null);
   const center = useRef<THREE.Group | null>(null);
   const globeGroup = useRef<THREE.Group | null>(null);
@@ -319,7 +331,7 @@ export function MarsScene({
     const mat = globeMat.current;
     if (mat !== null) {
       const o = opacity.current;
-      mat.opacity = o;
+      (mat.uniforms.uOpacity as { value: number }).value = o;
       mat.visible = o > 0.01;
       if (hazeMat.current !== null) {
         (hazeMat.current.uniforms.uOpacity as { value: number }).value = o;
@@ -346,14 +358,62 @@ export function MarsScene({
       <group ref={center} position={[0, -MARS_RADIUS, 0]} name="mars-globe">
         <group ref={globeGroup} quaternion={spin}>
           <mesh ref={globeMesh}>
-            <sphereGeometry args={[MARS_RADIUS, 128, 96]} />
-            <meshStandardMaterial
+            <sphereGeometry args={[MARS_RADIUS, 192, 128]} />
+            <shaderMaterial
               ref={globeMat}
-              map={texture}
-              roughness={1}
-              metalness={0}
+              uniforms={globeUniforms}
               transparent
               fog={false}
+              toneMapped={false}
+              vertexShader={/* glsl */ `
+                varying vec2 vUv;
+                varying vec3 vN;
+                varying vec3 vP;
+                void main() {
+                  vUv = uv;
+                  vN = normalize(mat3(modelMatrix) * normal);
+                  vec4 wp = modelMatrix * vec4(position, 1.0);
+                  vP = wp.xyz;
+                  gl_Position = projectionMatrix * viewMatrix * wp;
+                }
+              `}
+              fragmentShader={/* glsl */ `
+                varying vec2 vUv;
+                varying vec3 vN;
+                varying vec3 vP;
+                uniform sampler2D uMap;
+                uniform sampler2D uNormal;
+                uniform vec3 uSun;
+                uniform float uOpacity;
+
+                void main() {
+                  vec3 base = texture2D(uMap, vUv).rgb;
+                  // keep the photo, just a little richer
+                  base = mix(vec3(dot(base, vec3(0.299, 0.587, 0.114))), base, 1.12) * 1.04;
+                  vec3 N = normalize(vN);
+                  vec3 T = normalize(cross(vec3(0.0, 1.0, 0.0), N));
+                  vec3 B = normalize(cross(N, T));
+                  vec3 nm = texture2D(uNormal, vUv).rgb * 2.0 - 1.0;
+                  vec3 Nw = normalize(T * nm.x + B * nm.y + N * nm.z);
+
+                  vec3 V = normalize(cameraPosition - vP);
+                  float ndl = dot(Nw, normalize(uSun));
+                  float day = smoothstep(-0.55, 0.5, ndl);
+                  // a soft camera-side fill keeps the visible face readable
+                  // while the terminator stays on the limb
+                  float fill = 0.5 + 0.5 * dot(Nw, V);
+                  vec3 col = base * (0.10 + 1.0 * day + 0.55 * fill);
+
+                  vec3 H = normalize(normalize(uSun) + V);
+                  float spec = pow(max(dot(Nw, H), 0.0), 28.0) * 0.05 * day;
+                  col += vec3(1.0, 0.82, 0.66) * spec;
+
+                  float fres = pow(1.0 - max(dot(N, V), 0.0), 4.0);
+                  col += vec3(1.0, 0.5, 0.26) * fres * 0.10;
+
+                  gl_FragColor = vec4(col, uOpacity);
+                }
+              `}
             />
           </mesh>
           <mesh scale={1.004}>

@@ -14,6 +14,13 @@ the earlier 2048-wide copy and is kept for reference.)
 - **Processing:** resized to 3840 × 1920 with Lanczos, no colour grading,
   reprojection or feature retouching. The 2048-wide copy was resized the same way.
 
+## Globe normal map
+
+`mars_normal_1024.png` — 1024 × 512 tangent-space normal map derived from the
+luminance gradient of the same globe image (1.1 px blur, scale 3.2). It adds
+micro-relief shading to the globe; it is **artistic display detail**, not a
+measured global DEM, and is never used for any computation.
+
 ## Regional LOD (Jezero)
 
 `jezero_region_60km.jpg` — 2048 × 2048, colourised with the sandbox's own ramp.
