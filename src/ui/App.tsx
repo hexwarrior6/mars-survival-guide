@@ -26,6 +26,7 @@ import { routePolyline } from "../domain/world.js";
 import { worldTransform } from "../domain/world.js";
 import { PRESETS } from "../simulation/presets.js";
 import { LangContext, makeT, applyLangToUrl, langFromHash, type Lang } from "./i18n.js";
+import { HelmetHud } from "./HelmetHud.js";
 import "./theme.css";
 
 type LoadState =
@@ -50,6 +51,9 @@ export function App(): JSX.Element {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [webglFailed, setWebglFailed] = useState(false);
   const [loopMode, setLoopMode] = useState<LoopMode>("raf");
+  const [helmet, setHelmet] = useState(false);
+  /** bumped when an event lands, drives the red screen pulse */
+  const [eventPulse, setEventPulse] = useState(0);
   const [lang, setLangState] = useState<Lang>(langFromHash);
   const [sandboxEpoch, setSandboxEpoch] = useState(0);
   const missionRuntime = useRef<MissionRuntime | null>(null);
@@ -67,6 +71,8 @@ export function App(): JSX.Element {
     speed: 8,
     closureFired: false,
     scrubbed: false,
+    headingRad: null as number | null,
+    leg: "-",
   });
   const fpsStore = useRef<FpsStore>(makeFpsStore()).current;
   const [fpsTick, setFpsTick] = useState(0);
@@ -86,6 +92,7 @@ export function App(): JSX.Element {
     eventsApplied: [],
     emergencyActive: false,
     astronaut: null,
+    headingRad: null,
     totalMinutes: 0,
   });
   const speedRef = useRef(8);
@@ -274,6 +281,21 @@ export function App(): JSX.Element {
    * Sandbox (new <canvas> element => new WebGL context) and resets the frame
    * counter so the watchdog judges this mount on its own merits. This is what
    * fixed "first 3D click never opens without a 2D-detour + retry". */
+  // helmet view only makes sense with a live mission position
+  useEffect(() => {
+    if (!missionUi.started) setHelmet(false);
+  }, [missionUi.started]);
+  useEffect(() => {
+    if (view !== "3d" || webglFailed) setHelmet(false);
+  }, [view, webglFailed]);
+
+  // red pulse when a new event lands (battery loss, closure)
+  const seenEvents = useRef(0);
+  useEffect(() => {
+    if (missionUi.events.length > seenEvents.current) setEventPulse((n) => n + 1);
+    seenEvents.current = missionUi.events.length;
+  }, [missionUi.events.length]);
+
   const enter3d = (): void => {
     fpsStore.current.frames = 0;
     setSandboxEpoch((e) => e + 1);
@@ -333,6 +355,8 @@ export function App(): JSX.Element {
         events: hud.eventsApplied.map((e) => e.label),
         emergencyActive: hud.emergencyActive,
         closureFired: rt.schedule.closure !== null,
+        headingRad: hud.headingRad,
+        leg: hud.leg,
       }));
     }, 250);
     return () => clearInterval(timer);
@@ -545,6 +569,7 @@ export function App(): JSX.Element {
                   hudRef={hudMirror}
                   lang={lang}
                   returnable={returnable}
+                  helmet={helmet}
                   lockedRoute={lockedPolylines}
                 />
               </div>
@@ -620,6 +645,20 @@ export function App(): JSX.Element {
           >
             {t("Reset view")}
           </button>
+          <button
+            type="button"
+            className="small"
+            aria-pressed={helmet}
+            disabled={!missionUi.started || !show3d}
+            title={
+              missionUi.started
+                ? t("Ride the astronaut's eye level along the computed route")
+                : t("Start the expedition first")
+            }
+            onClick={() => setHelmet((on) => !on)}
+          >
+            {t("Helmet cam")}
+          </button>
           <span className="toolbar-sep" aria-hidden="true" />
           <button
             type="button"
@@ -641,6 +680,21 @@ export function App(): JSX.Element {
             {t("Sources & assumptions")}
           </button>
         </div>
+
+        {helmet && show3d && (
+          <HelmetHud
+            oxygen={missionUi.oxygen}
+            battery={missionUi.battery}
+            minutes={missionUi.simMinutes}
+            headingRad={missionUi.headingRad}
+            phase={missionUi.phase}
+            leg={missionUi.leg}
+            live={missionUi.started}
+          />
+        )}
+        {eventPulse > 0 && (
+          <div className="event-pulse" key={eventPulse} aria-hidden="true" />
+        )}
 
         <div className="chips-row">
           <ResourceChip

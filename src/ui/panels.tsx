@@ -583,7 +583,7 @@ export function LegendDrawer({
               className="swatch"
               style={{ width: 12, height: 12, borderRadius: 2, background: "linear-gradient(135deg, #c8824f, #5a2c17)" }}
             />
-            {t("surface colour, baked sun shadows, micro-relief and haze are artistic display; the 2D plan view is the unmodified CTX ortho")}
+            {t("surface colour, baked sun shadows, micro-relief, haze, boulders and glow are artistic display; the 2D plan view is the unmodified CTX ortho")}
           </dt>
         </dl>
         <h3>{t("Returnable range")}</h3>

@@ -77,6 +77,7 @@ import { LabelLayout, type LabelAnchor } from "./LabelLayout.js";
 import { getTerrainLook } from "./terrainLook.js";
 import { createFieldTexture, FIELD_MAX_MINUTES, updateFieldTexture } from "./fieldMask.js";
 import { Dust, PostFXGate, Sky, SUN_DIR } from "./SceneDressing.js";
+import { Boulders, HelmetCam } from "./HelmetCam.js";
 import type { Lang } from "./i18n.js";
 
 const LIFT_M = 1.5; // routes render 1.5 m above ground (display only)
@@ -303,6 +304,8 @@ function RouteLines({
 
   const outRef = useRef<Line2Like | null>(null);
   const headRef = useRef<THREE.Mesh | null>(null);
+  const cometRef = useRef<THREE.Mesh | null>(null);
+  const cometT = useRef(0);
   const unfurl = useRef(reducedMotion ? 1 : 0);
   const requestId = useRef<string | null>(null);
   if (requestId.current !== (result?.requestId ?? null)) {
@@ -317,6 +320,18 @@ function RouteLines({
     if (outRef.current && outbound) {
       const total = outbound.length - 1;
       outRef.current.geometry.instanceCount = Math.max(1, Math.round(unfurl.current * total));
+    }
+    // a light travelling the outbound leg: the plan reads as a direction, not
+    // just a line. Cosmetic only; it never implies progress.
+    if (cometRef.current !== null && outbound !== null && outbound.length > 1) {
+      cometT.current = (cometT.current + delta * 0.12) % 1;
+      const total = outbound.length - 1;
+      const f = cometT.current * total;
+      const i = Math.min(Math.floor(f), total - 1);
+      const a = outbound[i] as THREE.Vector3;
+      const b = outbound[i + 1] as THREE.Vector3;
+      cometRef.current.position.lerpVectors(a, b, f - i);
+      cometRef.current.visible = true;
     }
     if (headRef.current && outbound && outbound.length > 1) {
       const v = unfurl.current;
@@ -365,6 +380,10 @@ function RouteLines({
         <sphereGeometry args={[12, 16, 12]} />
         <meshBasicMaterial color="#fff3dd" />
       </mesh>
+      <mesh ref={cometRef} visible={false} name="route-comet">
+        <sphereGeometry args={[7, 12, 10]} />
+        <meshBasicMaterial color="#fff6e6" toneMapped={false} />
+      </mesh>
     </group>
   );
 }
@@ -406,6 +425,7 @@ function Markers({
   lang,
   showAllLabels,
   labelObstacles,
+  helmet,
 }: {
   pkg: LoadedPackage;
   t: WorldTransform;
@@ -417,6 +437,8 @@ function Markers({
   showAllLabels: boolean;
   /** planned route in world space: labels keep clear of it */
   labelObstacles: THREE.Vector3[];
+  /** first-person view: the site pins would fill the frame at eye level */
+  helmet: boolean;
 }): JSX.Element {
   const labelEls = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const siteMarkers = useMemo(
@@ -456,17 +478,21 @@ function Markers({
     <group name="markers">
       {siteMarkers.map(({ site, pos }) => {
         const selected = site.id === selectedSiteId;
-        const showLabel = showAllLabels || selected;
+        const showLabel = (showAllLabels || selected) && !helmet;
         return (
           <group key={site.id} position={[pos.x, pos.y, pos.z]}>
-            <mesh position={[0, 16, 0]}>
-              <sphereGeometry args={[selected ? 16 : 10, 20, 14]} />
-              <meshBasicMaterial color={selected ? "#ffb45e" : "#f5ead9"} />
-            </mesh>
-            <mesh position={[0, 6, 0]}>
-              <cylinderGeometry args={[0.9, 0.9, 14, 8]} />
-              <meshBasicMaterial color={selected ? "#ffb45e" : "#f5ead9"} />
-            </mesh>
+            {!helmet && (
+              <>
+                <mesh position={[0, 16, 0]}>
+                  <sphereGeometry args={[selected ? 16 : 10, 20, 14]} />
+                  <meshBasicMaterial color={selected ? "#ffb45e" : "#f5ead9"} />
+                </mesh>
+                <mesh position={[0, 6, 0]}>
+                  <cylinderGeometry args={[0.9, 0.9, 14, 8]} />
+                  <meshBasicMaterial color={selected ? "#ffb45e" : "#f5ead9"} />
+                </mesh>
+              </>
+            )}
             {showLabel && <Html
               position={[0, 44, 0]}
               center
@@ -498,6 +524,7 @@ function Markers({
         );
       })()}
       <group name="base" position={[basePos.x, basePos.y, basePos.z]}>
+        <Beacon active={true} />
         <mesh position={[0, 6, 0]}>
           <sphereGeometry args={[11, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial color="#e8e2d6" roughness={0.55} metalness={0.15} />
@@ -542,6 +569,36 @@ function Markers({
         </Html>
       </group>
       <LabelLayout anchors={labelAnchors} elements={labelEls} obstacles={labelObstacles} />
+    </group>
+  );
+}
+
+function Beacon({ active }: { active: boolean }): JSX.Element {
+  const ring = useRef<THREE.Mesh | null>(null);
+  const halo = useRef<THREE.Mesh | null>(null);
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    if (ring.current !== null) {
+      const k = (Math.sin(t * 1.1) + 1) / 2;
+      ring.current.scale.setScalar(0.9 + k * 0.25);
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = active ? 0.35 + k * 0.35 : 0.2;
+    }
+    if (halo.current !== null) {
+      const k = (Math.sin(t * 1.1 + 1.2) + 1) / 2;
+      halo.current.scale.setScalar(26 + k * 6);
+      (halo.current.material as THREE.MeshBasicMaterial).opacity = 0.12 + k * 0.1;
+    }
+  });
+  return (
+    <group name="base-beacon">
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.5, 0]}>
+        <ringGeometry args={[22, 26, 48]} />
+        <meshBasicMaterial color="#ffb45e" transparent opacity={0.4} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      <mesh ref={halo} rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.2, 0]}>
+        <circleGeometry args={[1, 48]} />
+        <meshBasicMaterial color="#ffcf9a" transparent opacity={0.12} depthWrite={false} />
+      </mesh>
     </group>
   );
 }
@@ -691,6 +748,7 @@ export function Sandbox({
   hudRef,
   lang,
   returnable,
+  helmet,
   lockedRoute,
 }: {
   pkg: LoadedPackage;
@@ -706,6 +764,8 @@ export function Sandbox({
   lang: Lang;
   /** computed returnable-range field + current resource threshold in minutes */
   returnable: { field: CostField; threshold: number } | null;
+  /** first-person helmet view: camera rides the simulated astronaut */
+  helmet: boolean;
   /** plan-A (locked) route polylines for the A/B comparison */
   lockedRoute: { out: { x: number; y: number; z: number }[]; ret: { x: number; y: number; z: number }[] } | null;
 }): JSX.Element {
@@ -803,6 +863,7 @@ export function Sandbox({
         lang={lang}
         showAllLabels={result === null}
         labelObstacles={labelObstacles}
+        helmet={helmet}
       />
       <RouteLines
         terrain={pkg.terrain}
@@ -824,6 +885,7 @@ export function Sandbox({
         pkg={pkg}
         t={t}
         closureActive={closureActive}
+        hidden={helmet}
       />
       <OrbitControls
         ref={controlsRef}
@@ -836,6 +898,13 @@ export function Sandbox({
         target={[0, 150, 0]}
       />
       <Dust />
+      <Boulders pkg={pkg} t={t} route={labelObstacles} />
+      <HelmetCam
+        active={helmet}
+        runtimeRef={runtimeRef}
+        hudRef={hudRef}
+        controlsRef={controlsRef}
+      />
       <PostFXGate reducedMotion={reducedMotion} />
       <CameraDirector controlsRef={controlsRef} t={t} reducedMotion={reducedMotion} />
       <FpsMeter fpsStore={fpsStore} />

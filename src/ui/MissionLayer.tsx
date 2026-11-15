@@ -20,12 +20,15 @@ export function MissionLayer({
   pkg,
   t,
   closureActive,
+  hidden,
 }: {
   runtimeRef: React.MutableRefObject<MissionRuntime | null>;
   hudRef: React.MutableRefObject<HudMirror>;
   pkg: LoadedPackage;
   t: WorldTransform;
   closureActive: boolean;
+  /** true while the first-person camera sits inside the astronaut model */
+  hidden: boolean;
 }): JSX.Element | null {
   const groupRef = useRef<THREE.Group | null>(null);
   const markerRef = useRef<THREE.Group | null>(null);
@@ -37,14 +40,14 @@ export function MissionLayer({
     const hud = hudRef.current;
     if (groupRef.current !== null && hud.astronaut !== null) {
       groupRef.current.position.set(hud.astronaut.x, hud.astronaut.y + 1.2, hud.astronaut.z);
-      groupRef.current.visible = true;
+      groupRef.current.visible = !hidden;
     }
     // the position marker rides the same exact interpolated position; the
     // astronaut model itself is true 1.7 m scale (invisible beyond ~2 km), so
     // a clearly-labelled enlarged marker makes the walk readable at overview
     if (markerRef.current !== null && hud.astronaut !== null) {
       markerRef.current.position.set(hud.astronaut.x, hud.astronaut.y, hud.astronaut.z);
-      markerRef.current.visible = true;
+      markerRef.current.visible = !hidden;
     }
     if (markerRef.current !== null && hud.astronaut === null) {
       markerRef.current.visible = false;

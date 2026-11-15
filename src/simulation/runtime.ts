@@ -41,6 +41,10 @@ export interface HudMirror {
   eventsApplied: Array<{ label: string }>;
   emergencyActive: boolean;
   astronaut: { x: number; y: number; z: number } | null;
+  /** travel bearing along the computed route, radians clockwise from north
+   *  (0 = north, +pi/2 = east). Derived from the same deterministic state, so a
+   *  scrubbed frame reports the direction the astronaut is actually walking. */
+  headingRad: number | null;
   totalMinutes: number;
 }
 
@@ -58,6 +62,7 @@ export function createHudMirror(): { current: HudMirror } {
       eventsApplied: [],
       emergencyActive: false,
       astronaut: null,
+      headingRad: null,
       totalMinutes: 0,
     },
   };
@@ -131,6 +136,29 @@ export function ensureEmergencyPlan(
  * reset states stay reflected in the HUD. Emergency cache semantics live in
  * ensureEmergencyPlan and are shared with scrubbing.
  */
+/** bearing (radians, clockwise from north) from T to T + lookAheadMin */
+function deriveHeading(
+  rt: MissionRuntime,
+  t: WorldTransform,
+  T: number,
+  lookAheadMin: number,
+): number | null {
+  const now = missionStateAt(rt.timeline, rt.schedule, ensureEmergencyPlan(rt, T), T);
+  if (now.position === null) return null;
+  const ahead = missionStateAt(
+    rt.timeline,
+    rt.schedule,
+    ensureEmergencyPlan(rt, T + lookAheadMin),
+    T + lookAheadMin,
+  );
+  if (ahead.position === null) return null;
+  const dx = ahead.position.xM - now.position.xM; // east positive
+  const dy = ahead.position.yM - now.position.yM; // north positive
+  if (Math.hypot(dx, dy) < 0.5) return null;
+  // world: x east, z = -north -> bearing 0 = north, clockwise positive
+  return Math.atan2(dx, dy);
+}
+
 export function stepMissionRuntime(
   rt: MissionRuntime,
   hud: HudMirror,
@@ -156,6 +184,10 @@ export function stepMissionRuntime(
     const wz = t.halfHeightM - st.position.yM;
     const elev = sampleElevationM(rt.timeline.terrain, st.position.xM, st.position.yM, t.datumM);
     hud.astronaut = { x: wx, y: worldY(t, elev), z: wz };
+    const heading = deriveHeading(rt, t, rt.T, 0.6);
+    if (heading !== null) hud.headingRad = heading; // standstill keeps the last bearing
+  } else {
+    hud.headingRad = null;
   }
 }
 
@@ -194,8 +226,11 @@ export function applyScrub(
     const wz = t.halfHeightM - st.position.yM;
     const elev = sampleElevationM(rt.timeline.terrain, st.position.xM, st.position.yM, t.datumM);
     hud.astronaut = { x: wx, y: worldY(t, elev), z: wz };
+    const heading = deriveHeading(rt, t, rt.T, 0.6);
+    if (heading !== null) hud.headingRad = heading;
   } else {
     hud.astronaut = null;
+    hud.headingRad = null;
   }
   return st;
 }
