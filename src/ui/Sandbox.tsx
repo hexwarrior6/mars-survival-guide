@@ -77,6 +77,7 @@ import { LabelLayout, type LabelAnchor } from "./LabelLayout.js";
 import { getTerrainLook } from "./terrainLook.js";
 import { createFieldTexture, FIELD_MAX_MINUTES, updateFieldTexture } from "./fieldMask.js";
 import { Dust, PostFXGate, Sky, SUN_DIR } from "./SceneDressing.js";
+import { MarsScene, type MarsPhase } from "./MarsScene.js";
 import { Boulders, HelmetCam } from "./HelmetCam.js";
 import type { Lang } from "./i18n.js";
 
@@ -607,10 +608,16 @@ function CameraDirector({
   controlsRef,
   t,
   reducedMotion,
+  active,
+  opening,
 }: {
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   t: WorldTransform;
   reducedMotion: boolean;
+  /** false while the Mars stage owns the camera */
+  active: boolean;
+  /** true only when the app did NOT open on the Mars stage */
+  opening: boolean;
 }): null {
   const camera = useThree((state) => state.camera);
   const lastSeq = useRef(0);
@@ -639,6 +646,8 @@ function CameraDirector({
       MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.ROTATE,
     };
+    // the Mars dive already delivered the camera: no second opening move
+    if (!opening) return;
     const pose = reducedMotion ? overviewPose(t, 400) : introPose(t);
     camera.position.set(pose.position.x, pose.position.y, pose.position.z);
     controls.target.set(pose.target.x, pose.target.y, pose.target.z);
@@ -662,6 +671,10 @@ function CameraDirector({
   }, []);
 
   useFrame((_, delta) => {
+    if (!active) {
+      transition.current = null;
+      return;
+    }
     const controls = controlsRef.current;
     if (!controls) return;
     const cmd = readCameraCommand();
@@ -750,6 +763,11 @@ export function Sandbox({
   returnable,
   helmet,
   lockedRoute,
+  marsPhase,
+  marsTarget,
+  introStartedOff,
+  onMarsPick,
+  onMarsDone,
 }: {
   pkg: LoadedPackage;
   result: RouteResult | null;
@@ -768,6 +786,13 @@ export function Sandbox({
   helmet: boolean;
   /** plan-A (locked) route polylines for the A/B comparison */
   lockedRoute: { out: { x: number; y: number; z: number }[]; ret: { x: number; y: number; z: number }[] } | null;
+  /** opening Mars stage state */
+  marsPhase: MarsPhase;
+  marsTarget: string | null;
+  /** whether the normal opening camera move should run once */
+  introStartedOff: boolean;
+  onMarsPick: (id: string) => void;
+  onMarsDone: (id: string) => void;
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
   // returnable-range mask lives in a texture: the tint follows the terrain
@@ -891,6 +916,7 @@ export function Sandbox({
       />
       <OrbitControls
         ref={controlsRef}
+        enabled={marsPhase === "off"}
         makeDefault
         enableDamping
         dampingFactor={0.12}
@@ -907,8 +933,25 @@ export function Sandbox({
         hudRef={hudRef}
         controlsRef={controlsRef}
       />
+      {marsPhase !== "off" && (
+        <Suspense fallback={null}>
+          <MarsScene
+            pkg={pkg}
+            phase={marsPhase}
+            targetId={marsTarget}
+            onPick={onMarsPick}
+            onDiveDone={onMarsDone}
+          />
+        </Suspense>
+      )}
       <PostFXGate reducedMotion={reducedMotion} />
-      <CameraDirector controlsRef={controlsRef} t={t} reducedMotion={reducedMotion} />
+      <CameraDirector
+        controlsRef={controlsRef}
+        t={t}
+        reducedMotion={reducedMotion}
+        active={marsPhase === "off"}
+        opening={introStartedOff}
+      />
       <FpsMeter fpsStore={fpsStore} />
     </Canvas>
     </>

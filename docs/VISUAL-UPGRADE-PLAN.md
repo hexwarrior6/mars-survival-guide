@@ -63,16 +63,18 @@
 
 ![第四批：总览](visuals/batch4-overview.png)
 
-**2026-11-15：第五批已交付并验证（从火星俯冲进入）。**
+**2026-11-15：第五批已交付并验证（从火星一镜到底）。**
 
-![第五批：火星接近段](visuals/batch5-mars-intro.png)
+![第五批：火星接近段，四个目标点](visuals/batch5-mars-intro.png)
 
-用户要的"从火星开始 zoom in"落成开场两段式，而不是每次选点都拉远：
+用户要的"从火星开始 zoom in"改成一个相机走完全程，不再是"星球叠层溶解 + 换相机"：
 
-- 星球是真的：Viking MDIM 2.1 全球彩色镶嵌（NASA/JPL/USGS，公有领域；来源、处理与许可见 [`public/data/mars/README.md`](../public/data/mars/README.md)），2048×1024 随包发布，不联网。Jezero 标记直接用 `region.json` 的 `boundsLatLon` 计算，不是手摆的。
-- 交互：点标记（或按 Enter）后，相机沿该点法线俯冲 2.3 s；最后 0.6 s 叠层溶解。地形相机在溶解开始前已经预置到低空落脚位（`y=4200, z=2100`，目标三角洲中心），所以露出的就是俯冲方向上的近景，随后 3.2 s 拉回总览。Skip / Esc 可跳过。
-- 开关：`prefers-reduced-motion` 直接进入并瞬移；`?intro=off` 关闭开场；`?intro=auto` 自动俯冲（录屏用）；顶栏新增「From Mars / 从火星看」可随时重播。
-- 边界：球体只做定位语境，不参与任何计算；标记数值来自数据包；2D 视图不出现球体。
+- 一个场景、一个相机：真实比例的 Viking MDIM 2.1 球体（R = 3,396.19 km）挂在地形原点下方，Jezero 表面点与地形原点重合。点击目标后，相机沿对数距离从 8.0×10³ km 插值到该站点的 `sitePose`，全程没有第二个画布、没有溶解切换。
+- 同尺度带来约 1:3000 的相机距离跨度：`near/far` 随高度动态收紧（每段都保持约 1e4 的深度比），不需要对数深度缓冲，路线、剖切块和贴地标签都不会 z-fighting。
+- 四个真实目标（BASE、SITE-A/B/C）以扇形引脚呈现。它们相距不足 5 km，在行星尺度上必然重合，所以引脚只是 UI 展开，并标注 "TARGET PINS FANNED FOR LEGIBILITY"；点击后落到对应站点的现有 `sitePose`，随后由既有两段式取景拉回整条路线。
+- 球体在距地表 9 km → 2.6 km 之间淡出，正好覆盖地形块从画面 1/4 长到满幅的过程；离开舞台立即卸载球体并还原地形的 near/far。
+- 开关：Skip / Esc 直接回总览；顶栏「From Mars」重播；`?intro=off` 关闭开场；`?intro=auto` 自动俯冲（录屏）；`prefers-reduced-motion` 直接进入。
+- 边界：球体只是定位语境，标记经纬度来自 `region.json`；不参与任何计算，2D 视图不出现球体。
 
 ## 1. 先看结论
 

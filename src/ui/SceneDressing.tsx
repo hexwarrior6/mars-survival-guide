@@ -38,6 +38,13 @@ function softDot(): THREE.Texture {
 }
 
 export function Sky(): JSX.Element {
+  const camera = useThree((state) => state.camera);
+  const ref = useRef<THREE.Mesh | null>(null);
+  // the gradient is a background, not a fixed object: it follows the camera so
+  // the Mars stage and the terrain see the same sky at any distance
+  useFrame(() => {
+    ref.current?.position.copy(camera.position);
+  });
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -72,6 +79,7 @@ export function Sky(): JSX.Element {
   );
   return (
     <mesh
+      ref={ref}
       name="sky"
       material={material}
       frustumCulled={false}

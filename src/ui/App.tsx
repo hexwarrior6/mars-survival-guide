@@ -14,7 +14,7 @@ import { PARAMS_VERSION } from "../domain/assumptions.js";
 import type { LoadedPackage } from "../domain/load.js";
 import type { RouteRequest, RouteResult, Strategy } from "../domain/types.js";
 import { Sandbox, flyToSite, makeFpsStore, type FpsStore, type LoopMode } from "./Sandbox.js";
-import { MarsIntro } from "./MarsIntro.js";
+import { marsHint, type MarsPhase } from "./MarsScene.js";
 import { PlanView2D } from "./PlanView2D.js";
 import { WebglErrorBoundary } from "./WebglErrorBoundary.js";
 import { LegendDrawer, MissionPanel, ResultsPanel, SourcesDrawer, type LockedPlan } from "./panels.js";
@@ -50,11 +50,16 @@ export function App(): JSX.Element {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  /** opening Mars stage: skipped on reduced-motion or with ?intro=off */
-  const [marsOpen, setMarsOpen] = useState(() => {
-    if (new URLSearchParams(window.location.search).get("intro") === "off") return false;
-    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  });
+  /** opening Mars stage: one continuous camera, skipped with ?intro=off */
+  const startOnMars = useRef(
+    new URLSearchParams(window.location.search).get("intro") !== "off" &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  ).current;
+  const autoIntro = useRef(
+    new URLSearchParams(window.location.search).get("intro") === "auto",
+  ).current;
+  const [marsPhase, setMarsPhase] = useState<MarsPhase>(startOnMars ? "orbit" : "off");
+  const [marsTarget, setMarsTarget] = useState<string | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [loopMode, setLoopMode] = useState<LoopMode>("raf");
   const [helmet, setHelmet] = useState(false);
@@ -138,6 +143,16 @@ export function App(): JSX.Element {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
+
+  // ?intro=auto: perform the dive without a click (demo capture)
+  useEffect(() => {
+    if (!autoIntro || marsPhase !== "orbit") return;
+    const id = window.setTimeout(() => {
+      setMarsTarget("SITE-A");
+      setMarsPhase("dive");
+    }, 2200);
+    return () => window.clearTimeout(id);
+  }, [autoIntro, marsPhase]);
 
   useEffect(() => {
     applyLangToUrl(lang);
@@ -387,7 +402,7 @@ export function App(): JSX.Element {
 
   if (load.kind === "loading") {
     return (
-      <div className="console">
+      <div className={`console${marsPhase === "off" ? "" : " mars-mode"}`}>
         <div className="loading-overlay">
           <div className="spinner" aria-hidden="true" />
           <p>
@@ -403,7 +418,7 @@ export function App(): JSX.Element {
   }
   if (load.kind === "error") {
     return (
-      <div className="console">
+      <div className={`console${marsPhase === "off" ? "" : " mars-mode"}`}>
         <div className="loading-overlay">
           <p>{t("Data package failed to load: {msg}", { msg: load.message })}</p>
           <button type="button" onClick={() => setReloadCounter((c) => c + 1)}>
@@ -415,7 +430,7 @@ export function App(): JSX.Element {
   }
   if (pkg === null) {
     return (
-      <div className="console">
+      <div className={`console${marsPhase === "off" ? "" : " mars-mode"}`}>
         <div className="loading-overlay">
           <div className="spinner" aria-hidden="true" />
           <p>{t("Loading frozen Jezero data package…")}</p>
@@ -549,7 +564,7 @@ export function App(): JSX.Element {
 
   return (
     <LangContext.Provider value={{ lang, setLang, t }}>
-      <div className="console">
+      <div className={`console${marsPhase === "off" ? "" : " mars-mode"}`}>
         <section className="stage" aria-label="Terrain stage">
           {/* full-bleed canvas layer + in-canvas labels */}
           <div className="overlay-labels" ref={overlayRef} style={{ display: show3d ? "block" : "none" }} />
@@ -558,6 +573,7 @@ export function App(): JSX.Element {
               onFallback={() => {
                 setWebglFailed(true);
                 setView("2d");
+                setMarsPhase("off");
               }}
             >
               <div className="canvas-holder">
@@ -577,6 +593,17 @@ export function App(): JSX.Element {
                   returnable={returnable}
                   helmet={helmet}
                   lockedRoute={lockedPolylines}
+                  marsPhase={marsPhase}
+                  marsTarget={marsTarget}
+                  introStartedOff={!startOnMars}
+                  onMarsPick={(id) => {
+                    setMarsTarget(id);
+                    setMarsPhase("dive");
+                  }}
+                  onMarsDone={(id) => {
+                    setMarsPhase("off");
+                    if (id !== "BASE") setSelectedSiteId(id);
+                  }}
                 />
               </div>
             </WebglErrorBoundary>
@@ -651,7 +678,17 @@ export function App(): JSX.Element {
           >
             {t("Reset view")}
           </button>
-          <button type="button" className="small" onClick={() => setMarsOpen(true)}>
+          <button
+            type="button"
+            className="small"
+            disabled={!show3d}
+            onClick={() => {
+              setSelectedSiteId(null);
+              setHelmet(false);
+              setMarsTarget(null);
+              setMarsPhase("orbit");
+            }}
+          >
             {t("From Mars")}
           </button>
           <button
@@ -810,37 +847,31 @@ export function App(): JSX.Element {
         />
         <SourcesDrawer pkg={pkg} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
-        {marsOpen && (
-          <WebglErrorBoundary onFallback={() => setMarsOpen(false)}>
-            <MarsIntro
-              north={pkg.region.boundsLatLon.north}
-              south={pkg.region.boundsLatLon.south}
-              east={pkg.region.boundsLatLon.east}
-              west={pkg.region.boundsLatLon.west}
-              lang={lang}
-              reducedMotion={reducedMotion}
-              onPrepare={() => {
-                // park the terrain camera under the still-opaque overlay so the
-                // dissolve reveals the close view the globe dive was heading for
-                commandCamera(
-                  { position: { x: 0, y: 4200, z: 2100 }, target: { x: 0, y: 150, z: 0 } },
-                  true,
-                );
-              }}
-              onEnter={() => {
-                const wt = worldTransform(pkg.terrain);
-                setMarsOpen(false);
-                if (reducedMotion) {
-                  commandCamera(overviewPose(wt, 400), true);
-                } else {
-                  window.setTimeout(
-                    () => commandCamera(overviewPose(wt, 400), false, 3200),
-                    500,
-                  );
-                }
-              }}
-            />
-          </WebglErrorBoundary>
+        {marsPhase !== "off" && (
+          <div className={`mars-hud${marsPhase === "dive" ? " is-diving" : ""}`}>
+            <div className="mars-brand">
+              <b>MARS SURVIVAL GUIDE</b>
+              <span>
+                {lang === "zh" ? "接近 · 耶泽罗任务区" : "APPROACH · JEZERO MISSION AREA"}
+              </span>
+            </div>
+            <div className="mars-hint">
+              <span>{marsHint(lang)}</span>
+              <button
+                type="button"
+                className="small"
+                onClick={() => {
+                  commandCamera(overviewPose(worldTransform(pkg.terrain), 400), true);
+                  setMarsPhase("off");
+                }}
+              >
+                {lang === "zh" ? "跳过" : "Skip"}
+              </button>
+            </div>
+            <div className="mars-credit">
+              VIKING MDIM 2.1 · NASA/JPL/USGS · TARGET PINS FANNED FOR LEGIBILITY
+            </div>
+          </div>
         )}
       </div>
     </LangContext.Provider>
