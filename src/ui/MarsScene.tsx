@@ -145,6 +145,7 @@ export function MarsScene({
   const opacity = useRef(1);
   const dragQ = useRef(new THREE.Quaternion());
   const zoom = useRef({ current: MARS_ORBIT_DIST, target: MARS_ORBIT_DIST });
+  const skyZoom = useRef(0);
   const orbitDir = useRef(new THREE.Vector3(0, 1, 0));
   const stageRef = useRef(-1);
   const dive = useRef<{
@@ -291,6 +292,8 @@ export function MarsScene({
       camera.position.copy(orbitDir.current).multiplyScalar(z.current).add(MARS_CENTRE);
       camera.lookAt(MARS_CENTRE);
       setClip(camera, z.current);
+      const k = (MARS_ORBIT_DIST - z.current) / (MARS_ORBIT_DIST - MARS_RADIUS * 1.35);
+      skyZoom.current = Math.min(Math.max(k, 0), 1);
     }
     if (center.current !== null) center.current.quaternion.copy(dragQ.current);
     const d = dive.current;
@@ -353,7 +356,7 @@ export function MarsScene({
 
   return (
     <>
-      <SpaceBackdrop />
+      <SpaceBackdrop orientation={dragQ} skyZoom={skyZoom} />
       <RegionalPlane />
       <group ref={center} position={[0, -MARS_RADIUS, 0]} name="mars-globe">
         <group ref={globeGroup} quaternion={spin}>

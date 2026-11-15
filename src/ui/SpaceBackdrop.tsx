@@ -17,11 +17,24 @@ const smoothstep = (e0: number, e1: number, x: number): number => {
   return t * t * (3 - 2 * t);
 };
 
-export function SpaceBackdrop(): JSX.Element {
+export function SpaceBackdrop({
+  orientation,
+  skyZoom,
+}: {
+  /** the globe's current trackball rotation: the sky turns with the view */
+  orientation: React.MutableRefObject<THREE.Quaternion>;
+  /** 0 at the default orbit distance, 1 at the closest zoom */
+  skyZoom: React.MutableRefObject<number>;
+}): JSX.Element {
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
   const mesh = useRef<THREE.Mesh>(null);
   const uniforms = useMemo(
-    () => ({ uTime: { value: 0 }, uSun: { value: SUN_DIR.clone() }, uFade: { value: 1 } }),
+    () => ({
+      uTime: { value: 0 },
+      uSun: { value: SUN_DIR.clone() },
+      uFade: { value: 1 },
+      uSkyZoom: { value: 0 },
+    }),
     [],
   );
 
@@ -31,9 +44,11 @@ export function SpaceBackdrop(): JSX.Element {
     // the star shell pops when the Mars scene unmounts
     const dist = Math.hypot(camera.position.x, camera.position.y, camera.position.z);
     uniforms.uFade.value = smoothstep(Math.log(20000), Math.log(60000), Math.log(dist));
+    uniforms.uSkyZoom.value = skyZoom.current;
     const m = mesh.current;
     if (m === null) return;
     m.position.copy(camera.position);
+    m.quaternion.copy(orientation.current);
     // keep it beyond near and inside far at every altitude of the dive
     const r = Math.max(camera.near * 2.5 + 400, 2000);
     m.scale.setScalar(Math.min(r, camera.far * 0.6));
@@ -59,6 +74,7 @@ export function SpaceBackdrop(): JSX.Element {
         fragmentShader={/* glsl */ `
           varying vec3 vDir;
           uniform float uTime;
+          uniform float uSkyZoom;
           uniform vec3 uSun;
           uniform float uFade;
 
@@ -92,7 +108,9 @@ export function SpaceBackdrop(): JSX.Element {
             // --- stars: one jittered point per grid cell ---------------------
             vec3 col = vec3(0.0);
             for (int layer = 0; layer < 2; layer++) {
-              float density = layer == 0 ? 240.0 : 480.0;
+              // zooming in spreads the field and enlarges the stars a little,
+              // so the sky reacts to the wheel instead of staying fixed
+              float density = layer == 0 ? 240.0 - 34.0 * uSkyZoom : 480.0 - 68.0 * uSkyZoom;
               float threshold = layer == 0 ? 0.955 : 0.986;
               vec3 g = d * density;
               vec3 cell = floor(g);
@@ -105,7 +123,7 @@ export function SpaceBackdrop(): JSX.Element {
                   h13(cell + 13.3)
                 );
                 float dist = length(f - off);
-                float core = smoothstep(0.18, 0.0, dist);
+                float core = smoothstep(0.18 + 0.07 * uSkyZoom, 0.0, dist);
                 float halo = smoothstep(0.42, 0.0, dist) * 0.12;
                 float twinkle = 0.55 + 0.45 * sin(uTime * 1.7 + h * 61.0);
                 vec3 tint = mix(vec3(0.72, 0.82, 1.0), vec3(1.0, 0.88, 0.72), h13(cell + 31.0));
