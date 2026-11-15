@@ -11,7 +11,7 @@ import { overviewPose, worldTransform } from "../domain/world.js";
 import type { Lang } from "./i18n.js";
 import { SpaceBackdrop } from "./SpaceBackdrop.js";
 import { SUN_DIR } from "./SceneDressing.js";
-import { MARS_RADIUS, MARS_CENTRE, DIVE_SECONDS, smoothstep, smootherstep, latLonToPoint, globeOrientation, approachStage, approachPose } from "./marsApproach.js";
+import { MARS_RADIUS, MARS_CENTRE, DIVE_SECONDS, smoothstep, smootherstep, latLonToPoint, globeOrientation, approachStage, approachPose, approachPlaybackRate, globeSurfaceGrade } from "./marsApproach.js";
 export { MARS_RADIUS, MARS_CENTRE } from "./marsApproach.js";
 
 const GLOBE_TEXTURE = "/data/mars/viking_mdim21_color_3840.jpg";
@@ -134,6 +134,7 @@ export function MarsScene({
       uNormal: { value: normalMap },
       uSun: { value: SUN_DIR.clone() },
       uOpacity: { value: 1 },
+      uSurfaceGrade: { value: 0 },
     }),
     [texture, normalMap],
   );
@@ -304,7 +305,7 @@ export function MarsScene({
     const d = dive.current;
     if (phase === "dive" && d !== null && !d.done) {
       // A stalled frame must not skip over an entire geographical scale.
-      d.elapsed = Math.min(DIVE_SECONDS, d.elapsed + Math.min(delta, 1 / 30));
+      d.elapsed = Math.min(DIVE_SECONDS, d.elapsed + Math.min(delta, 1 / 30) * approachPlaybackRate(d.elapsed / DIVE_SECONDS));
       const progress = d.elapsed / DIVE_SECONDS;
       dragQ.current.copy(d.initialDragQ).slerp(IDENTITY, smootherstep(progress / 0.35));
       if (center.current) center.current.quaternion.copy(dragQ.current);
@@ -339,6 +340,7 @@ export function MarsScene({
     if (mat !== null) {
       const o = opacity.current;
       (mat.uniforms.uOpacity as { value: number }).value = o;
+      (mat.uniforms.uSurfaceGrade as { value: number }).value = globeSurfaceGrade(camera.position.length());
       mat.visible = o > 0.01;
       if (hazeMat.current !== null) {
         (hazeMat.current.uniforms.uOpacity as { value: number }).value = o;
@@ -397,7 +399,7 @@ export function MarsScene({
               transparent
               depthWrite={false}
               fog={false}
-              toneMapped={false}
+              toneMapped
               vertexShader={/* glsl */ `
                 varying vec2 vUv;
                 varying vec3 vN;
@@ -432,11 +434,16 @@ export function MarsScene({
                 uniform sampler2D uNormal;
                 uniform vec3 uSun;
                 uniform float uOpacity;
+                uniform float uSurfaceGrade;
 
                 void main() {
                   vec3 base = texture2D(uMap, vUv).rgb;
-                  // keep the photo, rich in colour and contrast
-                  base = mix(vec3(dot(base, vec3(0.299, 0.587, 0.114))), base, 1.16) * 1.10;
+                  // The global map is colourized; CTX is monochrome. Approach
+                  // the local warm-grey palette gradually, keeping photo detail.
+                  float luma = dot(base, vec3(0.2126, 0.7152, 0.0722));
+                  vec3 orbital = mix(vec3(luma), base, 0.85);
+                  vec3 surface = vec3(luma) * vec3(1.08, 1.0, 0.94);
+                  base = mix(orbital, surface, uSurfaceGrade * 0.88);
 
                   vec3 nm = texture2D(uNormal, vUv).rgb * 2.0 - 1.0;
                   // deep, crisp relief on craters, valleys and surface features
@@ -448,7 +455,8 @@ export function MarsScene({
                   // a soft camera-side fill keeps the visible face readable
                   // while the terminator stays on the limb
                   float fill = 0.5 + 0.5 * dot(Nw, V);
-                  vec3 col = base * (0.14 + 1.04 * day + 0.66 * fill);
+                  float light = 0.18 + 0.65 * day + 0.38 * fill;
+                  vec3 col = base * mix(light, 1.0, uSurfaceGrade * 0.6);
 
                   vec3 H = normalize(normalize(uSun) + V);
                   float spec = pow(max(dot(Nw, H), 0.0), 28.0) * 0.05 * day;
@@ -458,6 +466,8 @@ export function MarsScene({
                   col += vec3(1.0, 0.5, 0.26) * fres * 0.10;
 
                   gl_FragColor = vec4(col, uOpacity);
+                  #include <tonemapping_fragment>
+                  #include <colorspace_fragment>
                 }
               `}
             />

@@ -57,3 +57,9 @@ gently resolves on approach, darkens near the mission, and fades away during
 the arrival boundary-lock effect. It is hidden in the stable mission view,
 including skipped introductions and reduced-motion mode. The regional UVs retain the
 +6.1 km crop offset and north-up orientation.
+
+The opening camera leg uses 2× playback, easing back to normal speed before the
+final approach. The global display shader reduces the former saturation/brightness
+boost and gradually blends the colourized Viking image toward the CTX display's
+warm-grey palette between 1500 and 100 km camera range. This is display grading,
+not measured surface colour; source image files and scientific data are unchanged.

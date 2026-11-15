@@ -57,3 +57,13 @@ export function contextPresentation(distance: number, phase: "orbit" | "dive" | 
   const focus = 1 - smoothstep(Math.log(12000), Math.log(45000), d);
   return { opacity: 0.35 + 0.65 * loaded, shade: 1 - 0.84 * focus, blur: 5 * (1 - loaded) };
 }
+
+/** Advance the original camera path faster in orbit, preserving the final leg. */
+export function approachPlaybackRate(progress: number): number {
+  return 2 - smoothstep(0.45, 0.65, progress);
+}
+
+/** Blend the colourized global product toward the local warm-grey display. */
+export function globeSurfaceGrade(distance: number): number {
+  return 1 - smoothstep(Math.log(100000), Math.log(1500000), Math.log(Math.max(1, distance)));
+}

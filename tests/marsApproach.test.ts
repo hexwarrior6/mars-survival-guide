@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { contextPresentation, approachPose, approachStage, globeOrientation, latLonToPoint, MARS_CENTRE, MARS_RADIUS } from "../src/ui/marsApproach.js";
+import { DIVE_SECONDS, approachPlaybackRate, globeSurfaceGrade, contextPresentation, approachPose, approachStage, globeOrientation, latLonToPoint, MARS_CENTRE, MARS_RADIUS } from "../src/ui/marsApproach.js";
 
 const from = new THREE.Vector3(0.27, 0.878, 0.396).normalize().multiplyScalar(MARS_RADIUS * 3).add(MARS_CENTRE);
 const to = new THREE.Vector3(-1152, 4464, 6336);
@@ -84,5 +84,39 @@ describe("approach context presentation", () => {
     expect(contextPresentation(8000, "off", 1)).toEqual({ opacity: 0, shade: 0, blur: 0 });
     expect(contextPresentation(8000, "off", 0.999).opacity).toBe(0);
     expect(contextPresentation(1000000, "orbit", 1).opacity).toBeGreaterThan(0);
+  });
+});
+
+describe("orbital pacing and colour handoff", () => {
+  it("plays the opening at 2x and preserves the final approach timing", () => {
+    expect(approachPlaybackRate(0)).toBe(2);
+    expect(approachPlaybackRate(0.4)).toBe(2);
+    expect(approachPlaybackRate(0.55)).toBeCloseTo(1.5);
+    expect(approachPlaybackRate(0.65)).toBe(1);
+    expect(approachPlaybackRate(1)).toBe(1);
+    let virtualTime = 0, realTime = 0, finalLegStart = 0;
+    const step = 1 / 240;
+    while (virtualTime < DIVE_SECONDS) {
+      if (virtualTime < DIVE_SECONDS * 0.65) finalLegStart = realTime;
+      virtualTime += step * approachPlaybackRate(virtualTime / DIVE_SECONDS);
+      realTime += step;
+    }
+    expect(realTime).toBeGreaterThan(7);
+    expect(realTime).toBeLessThan(8);
+    expect(realTime - finalLegStart).toBeCloseTo(3.5, 1);
+  });
+
+  it("gradually aligns the globe palette before the regional view takes over", () => {
+    expect(globeSurfaceGrade(2000000)).toBe(0);
+    let previous = 0;
+    for (const distance of [1500000, 1000000, 500000, 200000, 140000, 100000, 60000]) {
+      const grade = globeSurfaceGrade(distance);
+      expect(grade).toBeGreaterThanOrEqual(previous);
+      expect(grade).toBeGreaterThanOrEqual(0);
+      expect(grade).toBeLessThanOrEqual(1);
+      previous = grade;
+    }
+    expect(globeSurfaceGrade(100000)).toBe(1);
+    expect(globeSurfaceGrade(140000)).toBeGreaterThan(0.95);
   });
 });

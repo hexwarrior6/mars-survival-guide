@@ -4,7 +4,11 @@ A working Marswalk planning and mission-simulation console built for the **NASA 
 
 Plan a science excursion from a simulated base in the western delta of Jezero Crater, compare round-trip options against a resource budget, replay the mission minute by minute, and replan an emergency return when a simulated incident hits. The terrain, imagery, and science-site objectives come from real NASA data; the mission itself is simulated, and every simulated element is labeled as such in the app.
 
-This is a local application (run with `npm run dev`). There is no live deployment yet.
+**[Try the live console](https://mars-survival-guide-green.vercel.app/)** · [Project description, NASA sources and AI disclosure](docs/SUBMISSION.md)
+
+![Real application: Jezero mission planning console](docs/visuals/submission-live.png)
+
+The screenshot above is from the running application. Design concept images elsewhere in the documentation are labeled separately.
 
 ## Implemented features
 
@@ -28,7 +32,7 @@ This is a local application (run with `npm run dev`). There is no live deploymen
 - Site selection plays a two-stage camera: first focus on the site, then pull back until the whole round trip fills the frame at a close 45° oblique. Screen-space label placement keeps the selected site and base labels clear of the plan by nudging them (and hides non-selected site labels while a plan is shown); the cut-away block reads in the overview. A skippable opening camera move runs on load; `prefers-reduced-motion` goes straight to stable views.
 - A display-only cut-away block (side faces, synthetic strata, lit rim, base slab) gives the plate physical weight; its top edge follows the real DEM cells and the strata pattern is labelled artistic in the legend and the sources drawer.
 - A baked display surface replaces the single-band ortho and stays led by the photograph: the real CTX luminance supplies the tone and structure, a near-neutral warm tint only lifts it to screen range, and slope/curvature plus a faint DEM horizon-scan shadow modulate it by a few percent. Micro-relief normals keep close views from turning to mush. Sky gradient, ground haze, dust and a bloom chain finish the frame; all of it is display-only and labelled, and the 2D plan view still draws the untouched ortho.
-- From Mars: the app opens on a real Viking MDIM 2.1 globe (NASA/JPL/USGS, public domain, shipped with the app) at true scale. Mission locations come from `public/data/missions.json`: entries with a `path` have a terrain package and can be entered (Jezero in this build); the rest are future areas marked `NO PACKAGE`. Adding a location is one manifest entry plus its package — the globe re-orients on the loaded package's lat/lon bounds and the pin appears. The globe is a trackball: drag in any direction and the surface follows, with no angle limits; the wheel zooms 1.15–4.2 R. Its material is a custom shader with a real terminator, a camera-side fill, a sun highlight and an atmospheric rim, plus a normal map derived from the albedo luminance for micro-relief (artistic, not a measured global DEM). The star field turns with the same trackball quaternion, so the sky reacts with the globe; its stars stay a fixed apparent size while zooming, as a sky at infinity should. One camera and one scene: clicking an available location starts a continuous 10 s logarithmic approach through three scales: Mars → 60 km CTX regional context → local 3D mission terrain. The camera preserves the orbit gaze at departure and reaches the exact sandbox overview at arrival; geographic east and north align across the globe and local maps. The 60 km regional mesh has an exact opening for the measured mission DEM and keeps the local terrain embedded throughout the approach. Heights stay fixed while the regional photo gently resolves from soft to sharp. Near the mission, the surround darkens; on arrival it retires during a brief amber boundary-lock effect, leaving only the task sandbox. A display-only apron joins the measured boundary to Mars curvature outside the planning package; it is not a measured regional DEM (dynamic near/far, no cut). `Skip` / Esc, `?intro=off`, `?intro=auto`, `prefers-reduced-motion`, and a `From Mars` toolbar button control it. On landing a 2.4 s amber light traces the task perimeter while regional context fades away; the mission texture is never swapped. Skipping or reduced motion does not play it.
+- From Mars: the app opens on a real Viking MDIM 2.1 globe (NASA/JPL/USGS, public domain, shipped with the app) at true scale. Mission locations come from `public/data/missions.json`: entries with a `path` have a terrain package and can be entered (Jezero in this build); the rest are future areas marked `NO PACKAGE`. Adding a location is one manifest entry plus its package — the globe re-orients on the loaded package's lat/lon bounds and the pin appears. The globe is a trackball: drag in any direction and the surface follows, with no angle limits; the wheel zooms 1.15–4.2 R. Its material is a custom shader with a real terminator, a camera-side fill, a sun highlight and an atmospheric rim, plus a normal map derived from the albedo luminance for micro-relief (artistic, not a measured global DEM). The star field turns with the same trackball quaternion, so the sky reacts with the globe; its stars stay a fixed apparent size while zooming, as a sky at infinity should. One camera and one scene: clicking an available location starts a continuous logarithmic approach through three scales: Mars → 60 km CTX regional context → local 3D mission terrain. The orbital leg plays at 2× speed and smoothly returns to normal speed for the final approach. The colourized globe gradually approaches the local warm-grey display palette as regional detail resolves. The camera preserves the orbit gaze at departure and reaches the exact sandbox overview at arrival; geographic east and north align across the globe and local maps. The 60 km regional mesh has an exact opening for the measured mission DEM and keeps the local terrain embedded throughout the approach. Heights stay fixed while the regional photo gently resolves from soft to sharp. Near the mission, the surround darkens; on arrival it retires during a brief amber boundary-lock effect, leaving only the task sandbox. A display-only apron joins the measured boundary to Mars curvature outside the planning package; it is not a measured regional DEM (dynamic near/far, no cut). `Skip` / Esc, `?intro=off`, `?intro=auto`, `prefers-reduced-motion`, and a `From Mars` toolbar button control it. On landing a 2.4 s amber light traces the task perimeter while regional context fades away; the mission texture is never swapped. Skipping or reduced motion does not play it.
 - Helmet cam: ride the astronaut's own eye level along the computed route (position and bearing come from the deterministic runtime, so scrubbing the timeline moves the view). Suit HUD shows O₂/PWR, leg, phase, T+, bearing and eye height; it is labelled as a simulated position with artistic near-field detail, and needs a started mission.
 - A pulsing base beacon, a light travelling the planned route, and a red screen pulse when an event lands — all display-only.
 - A 70 m terrain-snapped selection ring, base flag, and astronaut figure provide scale references. The astronaut is true 1.7 m scale, paired with a magnified position light pillar so the location is visible from overview distance — the legend states the pillar is not to scale.
@@ -87,7 +91,7 @@ All numbers are from recorded acceptance runs on Apple M4 (macOS arm64) in a rea
 
 ## Testing and quality
 
-- 67 automated tests: kernel search and budget invariants, loader validation, display mapping, simulation determinism and event semantics, returnable-field consistency with the forward search, and real-data performance gates.
+- 69 automated tests: kernel search and budget invariants, loader validation, display mapping, simulation determinism and event semantics, returnable-field consistency with the forward search, and real-data performance gates.
 - `npm run typecheck`, `npm run build`, and `npm run validate:data` all pass in CI-style local runs.
 
 ## Run it
@@ -102,7 +106,7 @@ npm run dev            # development server
 Other commands:
 
 ```bash
-npm test -- --no-file-parallelism  # 67 tests, serial performance checks
+npm test -- --no-file-parallelism  # 69 tests, serial performance checks
 npm run build          # production build
 npm run validate:data  # verify data package schema and checksums
 npm run demo           # CLI route-planning demo
@@ -123,6 +127,6 @@ Not implemented (documented future extensions in `docs/IMPLEMENTATION.md` §8): 
 
 ## Attribution and participation
 
-The original concept names **Liang-Tzu**, Singapore Local Event. Account membership and submission status have not been verified. AI development assistance and dataset attribution must be documented in the eventual submission, per competition requirements.
+**Liang-Tzu**, Singapore Local Event. Team ownership and the selected challenge were verified on the competition website on 2026-11-15. The public application and source repository are available; competition materials are being saved, with the demonstration video and final judging submission pending. See [AI use disclosure and references](docs/SUBMISSION.md).
 
 Code is licensed under [MIT](LICENSE). External datasets and imagery retain their own terms and attribution requirements; the repository license does not relicense them.

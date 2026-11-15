@@ -37,6 +37,16 @@ export function RegionalPlane({ pkg, phase, scanReveal }: { pkg: LoadedPackage; 
           image += texture2D(map, vMapUv - vec2(0.0, texel.y)) * 0.15;
           diffuseColor *= image;
         `)
+        .replace("#include <alphamap_fragment>", `
+          #include <alphamap_fragment>
+          // Rounded rectangular footprint with a 4.5 km feather at the outer
+          // crop edge. UVs cover the entire regional map, so the inner mission
+          // opening and its measured DEM seam remain fully opaque.
+          vec2 contextCorner = abs(vMapUv - 0.5) - vec2(0.38);
+          float contextEdge = length(max(contextCorner, 0.0))
+            + min(max(contextCorner.x, contextCorner.y), 0.0) - 0.12;
+          diffuseColor.a *= 1.0 - smoothstep(-0.075, 0.0, contextEdge);
+        `)
         // Shade after fog too, so the retiring surround fades to black.
         .replace("#include <fog_fragment>", "#include <fog_fragment>\ngl_FragColor.rgb *= uContextShade;");
     };
