@@ -74,14 +74,23 @@ import { commandCamera, readCameraCommand } from "./cameraBus.js";
 import { MissionLayer } from "./MissionLayer.js";
 import { BlockSides } from "./BlockSides.js";
 import { LabelLayout, type LabelAnchor } from "./LabelLayout.js";
+import { getTerrainLook } from "./terrainLook.js";
+import { Dust, PostFXGate, Sky, SUN_DIR } from "./SceneDressing.js";
 import type { Lang } from "./i18n.js";
 
 const LIFT_M = 1.5; // routes render 1.5 m above ground (display only)
 const EASE = (x: number): number => x * x * (3 - 2 * x);
 
-function TerrainMesh({ terrain, t }: { terrain: TerrainGrid; t: WorldTransform }): JSX.Element {
-  const texture = useTexture("/data/jezero/imagery/ortho_5m.jpg");
-  texture.anisotropy = 8;
+/** Terrain plate. Uses the baked display surface when the loader produced one
+ * (colour + long shadows + micro-relief normals) and falls back to the raw
+ * ortho, so a failed bake costs beauty, never the sandbox. */
+function TerrainMesh({ pkg, t }: { pkg: LoadedPackage; t: WorldTransform }): JSX.Element {
+  const terrain = pkg.terrain;
+  const ortho = useTexture("/data/jezero/imagery/ortho_5m.jpg");
+  ortho.anisotropy = 8;
+  // dev switch: ?raw renders the untouched ortho, to compare against the bake
+  const rawOnly = new URLSearchParams(location.search).has("raw");
+  const look = rawOnly ? null : getTerrainLook(pkg);
   const geometry = useMemo(() => {
     const w = terrain.width;
     const h = terrain.height;
@@ -116,11 +125,64 @@ function TerrainMesh({ terrain, t }: { terrain: TerrainGrid; t: WorldTransform }
     geo.computeVertexNormals();
     return geo;
   }, [terrain, t]);
-  return (
-    <mesh geometry={geometry} name="terrain">
-      <meshStandardMaterial map={texture} color="#e2a877" roughness={0.93} metalness={0} />
-    </mesh>
-  );
+
+  const material = useMemo(() => {
+    if (look === null) {
+      return new THREE.MeshStandardMaterial({
+        map: ortho,
+        color: new THREE.Color("#e2a877"),
+        roughness: 0.93,
+        metalness: 0,
+      });
+    }
+    const material = new THREE.MeshStandardMaterial({
+      map: look.albedo,
+      normalMap: look.normalMap,
+      normalScale: new THREE.Vector2(1, 1),
+      roughness: 1,
+      metalness: 0,
+      dithering: true,
+    });
+    // near-field granularity: the published ortho is 5 m/px, so a closer camera
+    // magnifies it into mush. This adds metre-scale grain from world position —
+    // artistic detail, no invented landforms, disabled on the raw-ortho path.
+    material.customProgramCacheKey = () => "sandbox-terrain-grain";
+    material.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec3 vWPos;")
+        .replace(
+          "#include <begin_vertex>",
+          "#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;",
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          `#include <common>
+          varying vec3 vWPos;
+          float h21(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+          float n2(vec2 p){
+            vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x),
+                       mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);
+          }
+          float grain(vec2 p){ return n2(p * 0.9) * 0.5 + n2(p * 2.7) * 0.3 + n2(p * 7.1) * 0.2; }`,
+        )
+        .replace(
+          "#include <map_fragment>",
+          `#include <map_fragment>
+          float dA = grain(vWPos.xz * 0.3);
+          float dB = grain(vWPos.xz * 1.7 + 19.0);
+          float detail = mix(dA, dB, 0.5);
+          diffuseColor.rgb *= 0.82 + 0.34 * detail;
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.06, 0.96, 0.88), detail * 0.5);`,
+        );
+    };
+    return material;
+  }, [look, ortho]);
+
+  useEffect(() => () => material.dispose(), [material]);
+
+  return <mesh geometry={geometry} material={material} name="terrain" />;
 }
 
 /** structural type for the Line2 handle (geometry.instanceCount drives the unfurl) */
@@ -719,22 +781,33 @@ export function Sandbox({
       /* near = 50, not 1: the sandbox lives at 300–9000 units, and a 1-unit
          near plane burns depth precision at overview range (routes lifted
          4.5 units off the ground start z-fighting with the terrain). */
-      camera={{ fov: 46, near: 50, far: 30000, position: [1500, 7600, 8300] }}
+      camera={{ fov: 46, near: 50, far: 40000, position: [1500, 7600, 8300] }}
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={(state) => {
-        state.gl.toneMappingExposure = 1.5;
+        // display grade: ACES + a slightly hot exposure. The baked albedo
+        // already carries the sun shadows, so the key light is lower than the
+        // pre-bake 2.8 to avoid crushing the lit faces.
+        state.gl.toneMapping = THREE.ACESFilmicToneMapping;
+        state.gl.toneMappingExposure = 1.15;
       }}
     >
-      <color attach="background" args={["#0d0a08"]} />
-      <hemisphereLight args={["#c9905e", "#241708", 0.7]} />
-      <ambientLight intensity={0.26} />
-      {/* key light: azimuth matches the DEM hillshade convention (NW) */}
-      <directionalLight position={[-2800, 5600, -2600]} intensity={2.8} color="#ffdfc0" />
-      {/* warm display-only fill from the opposite quarter to lift the shadows */}
-      <directionalLight position={[3200, 1600, 3400]} intensity={0.85} color="#d19a6a" />
+      <color attach="background" args={["#070504"]} />
+      {/* aerial perspective: a warm, light haze (a dark fog just mutes the tile) */}
+      <fogExp2 attach="fog" args={["#5a2c17", 0.00004]} />
+      <Sky />
+      <hemisphereLight args={["#8a5230", "#241208", 0.55]} />
+      <ambientLight intensity={0.12} color="#ffd9b8" />
+      {/* key light: NW, low — same azimuth as the baked DEM shadows */}
+      <directionalLight
+        position={[SUN_DIR.x * 10000, SUN_DIR.y * 10000, SUN_DIR.z * 10000]}
+        intensity={2.8}
+        color="#ffd6ad"
+      />
+      {/* warm display-only fill from the opposite quarter to lift the cut faces */}
+      <directionalLight position={[5200, 1500, 5600]} intensity={0.85} color="#ff9d63" />
       <Suspense fallback={null}>
-        <TerrainMesh terrain={pkg.terrain} t={t} />
+        <TerrainMesh pkg={pkg} t={t} />
       </Suspense>
       {/* display-only cut-away block: side faces + base slab + lit rim.
           Strata pattern is artistic; geometry anchors are the real DEM edge. */}
@@ -787,6 +860,8 @@ export function Sandbox({
         maxPolarAngle={Math.PI * 0.46}
         target={[0, 150, 0]}
       />
+      <Dust />
+      <PostFXGate reducedMotion={reducedMotion} />
       <CameraDirector controlsRef={controlsRef} t={t} reducedMotion={reducedMotion} />
       <FpsMeter fpsStore={fpsStore} />
     </Canvas>

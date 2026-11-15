@@ -24,6 +24,22 @@
 - 标注与文档：图例新增剖切块条目；「来源与假设」新增「显示美术（非数据）」小节；`VISUAL-DIRECTION.md` 落定为方案 C（3D 美术化 + 2D 保持数据真相）。
 - 验收：draw calls 16（无方案）/ 23（有方案）；`tsc --noEmit`、`npm run build` 通过；58 项功能测试通过。唯一例外是 `tests/field.test.ts` 的 50 ms 性能门禁——本机当时负载 ~7（同时跑浏览器与开发服务器），该项实测 100–315 ms 抖动；该代码路径（`src/routing/`、`src/simulation/`）本批未改动，空闲机器上需复测。
 
+**2026-11-15：第二批已交付并验证。**
+
+![第二批：总览（烘焙地表 + 长阴影 + 天空/雾）](visuals/batch2-overview.png)
+
+![第二批：SITE-B 全景（脊线边缘光 + 路线辉光）](visuals/batch2-siteb.png)
+
+第一批 → 第二批对照：
+
+![第一批 vs 第二批](visuals/batch2-before-after.png)
+
+- 显示地表：[`src/ui/terrainLook.ts`](../src/ui/terrainLook.ts)。真实正射亮度 × 坡度/曲率配色 × DEM horizon-scan 长阴影（15° 西北向，与主光一致），加局部对比与微观起伏法线；加载期一次性烘焙（0.6–0.9 s，分片让出主线程）。
+- 场景：[`src/ui/SceneDressing.tsx`](../src/ui/SceneDressing.tsx)。天空渐变 + 低空雾、漂浮尘粒、ACES 色调映射、泛光链（`?post=force` / `?post=off` 可强制开关；默认自适应：首 1.6 s 平均帧时间 > 33 ms 就自动关闭）。
+- 材质：地表在近距离加了一层米级颗粒（世界坐标噪声），避免 5 m/px 正射被放大成糊；顶点/法线细节仍在数据层之外。
+- 显示比例：`RELIEF_SCALE` 3 → 4.5（图例与文档同步改为 "vertical relief ×4.5 display only"）。
+- 调试开关：`?raw` 用原生正射渲染，便于与烘焙地表 A/B。
+
 ## 1. 先看结论
 
 现在的问题不是"模型太简单"，而是**三件事同时发生**：地形只有一张均匀褐色的贴图、没有明暗层次、镜头又贴得太近。结果是一块"糊掉的棕地图"，观众无法判断自己在看什么尺度。
@@ -97,12 +113,11 @@
 ![方向：掠射逆光下的层次与空气感](visuals/lookdev-raking.png)
 - 保留西北主光，补光改暖（`#ff9d63`）并压低，避免切面死黑或过曝。
 
-### 5.4 垂直夸张要重新标定
+### 5.4 垂直夸张要重新标定（已实施：×4.5）
 
 真实起伏 210 m / 5.12 km。当前 `RELIEF_SCALE = 3`，总览仍偏平；lookdev 里 **×4.5** 的块体明显更像"峡谷模型"。建议：
 
-- 总览与演示镜头用 ×4.5，图例改为 "vertical relief ×4.5 display only"；
-- 若担心误导，可保留 ×3 但把总览机位再拉近到能看清块体边缘。
+- 已定案：`RELIEF_SCALE = 4.5`，图例与 `SPECIFICATION`/`IMPLEMENTATION` 同步改为 "vertical relief ×4.5 display only"。
 - 这是**一个常量 + 一句图例**的改动，路线、标记、剖面会跟着一起缩放（都走 `worldY`），不会错位。
 
 ## 6. P0-3 镜头语言

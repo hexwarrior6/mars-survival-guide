@@ -32,7 +32,7 @@ scripts/data/            获取、裁剪、变换与验证（Python，阶段 1 �
 scripts/validate-data.ts 数据校验 CLI（npm run validate:data）
 public/data/jezero/      可发布数据包与来源 manifest（schemaVersion 1.1）
 src/domain/          types 契约、assumptions 参数范围、load 解析校验、
-                     world 显示映射（坐标/双线性采样/相机取景，垂直×3 仅显示）
+                     world 显示映射（坐标/双线性采样/相机取景，垂直×4.5 仅显示）
 src/routing/         graph 通行性与边代价、search A*/Dijkstra、budget 预算、plan 往返编排
 src/simulation/      engine 确定性状态机（missionStateAt / planEmergencyReturn）、
                      runtime、presets 脚本化场景

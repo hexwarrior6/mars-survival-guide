@@ -198,10 +198,10 @@ export function BlockSides({
       {/* lit lip along the cut edge: separates the block from the background */}
       <Line
         points={top}
-        color="#ffcfa2"
-        lineWidth={1.2}
+        color="#ffcf9f"
+        lineWidth={1.1}
         transparent
-        opacity={0.32}
+        opacity={0.2}
         depthWrite={false}
       />
     </group>

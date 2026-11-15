@@ -27,6 +27,7 @@ This is a local application (run with `npm run dev`). There is no live deploymen
 - Full-viewport terrain stage textured with the CTX ortho mosaic; sun direction matches the DEM shadowing convention (northwest). Routes hug the terrain: outbound warm white, return amber, emergency return amber, invalidated routes gray dashed.
 - Site selection plays a two-stage camera: first focus on the site, then pull back until the whole round trip fills the frame at a close 45° oblique. Screen-space label placement keeps the selected site and base labels clear of the plan by nudging them (and hides non-selected site labels while a plan is shown); the cut-away block reads in the overview. A skippable opening camera move runs on load; `prefers-reduced-motion` goes straight to stable views.
 - A display-only cut-away block (side faces, synthetic strata, lit rim, base slab) gives the plate physical weight; its top edge follows the real DEM cells and the strata pattern is labelled artistic in the legend and the sources drawer.
+- A baked display surface replaces the single-band ortho: the real CTX luminance drives a slope/curvature palette, long shadows are traced once from the DEM at the app's own sun azimuth, and micro-relief normals plus metre-scale grain keep close views from turning to mush. Sky gradient, ground haze, dust and a bloom chain finish the frame; all of it is display-only and labelled, and the 2D plan view still draws the untouched ortho.
 - A 70 m terrain-snapped selection ring, base flag, and astronaut figure provide scale references. The astronaut is true 1.7 m scale, paired with a magnified position light pillar so the location is visible from overview distance — the legend states the pillar is not to scale.
 - Robustness: a frame-stall watchdog falls back to a timer-driven render loop (background tabs keep rendering), plus a WebGL error boundary and a 2D fallback view.
 
@@ -78,7 +79,8 @@ All numbers are from recorded acceptance runs on Apple M4 (macOS arm64) in a rea
 
 - Full round-trip plan (both strategies) on the real 256 × 256 grid: ~5–12 ms in the kernel; in-browser planning interactions measured 15.3–21.3 ms against the ≤ 1 s target.
 - Full-grid returnable-range field: ≤ 50 ms per recompute (asserted by the test suite).
-- First load ≈ 1.7 MB total (data package, JS gzip, texture); interactive rendering measured 120 fps at 11–13 draw calls (1440 × 900, foreground).
+- First load ≈ 1.7 MB total (data package, JS gzip, texture) plus a one-off display-surface bake measured at 0.6–0.9 s in-browser (menu-bar laptop, single thread, yields to the event loop every 128 rows).
+- Draw calls: 18 with the forward renderer, 32–37 once the post chain is active (it accumulates passes). Frame rate must be re-measured on the demo machine: the bloom chain disables itself when the first ~1.6 s of frames average below 30 fps, so a slow GPU degrades instead of stuttering.
 
 ## Testing and quality
 

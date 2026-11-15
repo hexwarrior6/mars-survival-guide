@@ -578,6 +578,13 @@ export function LegendDrawer({
             />
             {t("cut-away block: side faces, strata, depth and lit rim are artistic display — the top edge follows the real DEM cells")}
           </dt>
+          <dt>
+            <span
+              className="swatch"
+              style={{ width: 12, height: 12, borderRadius: 2, background: "linear-gradient(135deg, #c8824f, #5a2c17)" }}
+            />
+            {t("surface colour, baked sun shadows, micro-relief and haze are artistic display; the 2D plan view is the unmodified CTX ortho")}
+          </dt>
         </dl>
         <h3>{t("Returnable range")}</h3>
         <p className="hint">
@@ -585,7 +592,7 @@ export function LegendDrawer({
         </p>
         <h3>{t("Reading the terrain")}</h3>
         <p className="hint">{t("controls: left-drag pan · right-drag rotate/pitch · wheel zoom")}</p>
-        <p className="hint">{t("grid 20 m/cell · vertical relief ×3 display only")}</p>
+        <p className="hint">{t("grid 20 m/cell · vertical relief ×4.5 display only")}</p>
         <p className="hint">{t("2D plan view draws the published CTX ortho unchanged; the 3D view is a display layer on the same data (see Display art in Sources & assumptions)")}</p>
         <p className="hint">{t("units: meters · minutes · simulated 0–100 budget units")}</p>
         <p className="hint">{t("lighting: key-light azimuth matches the DEM hillshade (NW) · warm fill is display only")}</p>
@@ -666,7 +673,7 @@ export function SourcesDrawer({
         </table>
         <h3>{t("Display art (not data)")}</h3>
         <p className="hint">
-          {t("The 3D sandbox is a display layer on the published package. Artistic here: the cut-away block sides, their strata pattern and depth, the lit rim, the warm fill light and any future surface colour or near-field micro-detail. None of it feeds route, time, resource or landform-anchor values.")}
+          {t("The 3D sandbox is a display layer on the published package. Artistic here: the cut-away block sides, their strata pattern and depth, the lit rim, the warm fill light, the derived surface colour, the baked sun shadows, the micro-relief, the haze and the glow. None of it feeds route, time, resource or landform-anchor values; vertical relief is exaggerated ×4.5 and labelled.")}
         </p>
         <p className="hint">
           {t("The 2D plan view draws the published CTX ortho unchanged and stays the data-truth view; both views use the same DEM grid, the same route kernel and the same numbers.")}

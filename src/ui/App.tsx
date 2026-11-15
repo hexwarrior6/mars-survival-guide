@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { loadPackageFromFetch } from "../data/fetchLoader.js";
+import { bakeTerrainLook } from "./terrainLook.js";
 import { planRoundTrip } from "../routing/plan.js";
 import { PARAMS_VERSION } from "../domain/assumptions.js";
 import type { LoadedPackage } from "../domain/load.js";
@@ -69,6 +70,8 @@ export function App(): JSX.Element {
   });
   const fpsStore = useRef<FpsStore>(makeFpsStore()).current;
   const [fpsTick, setFpsTick] = useState(0);
+  /** 0..1 while the display surface is baked; null once the package is ready */
+  const [bakeProgress, setBakeProgress] = useState<number | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const requestId = useRef(0);
   const hudMirror = useRef<HudMirror>({
@@ -90,8 +93,21 @@ export function App(): JSX.Element {
   useEffect(() => {
     let alive = true;
     setLoad({ kind: "loading" });
+    setBakeProgress(null);
     loadPackageFromFetch("/data/jezero")
-      .then((pkg) => {
+      .then(async (pkg) => {
+        // bake the display surface before the sandbox mounts: it is artistic
+        // only, so a failure falls back to the raw ortho instead of blocking
+        try {
+          setBakeProgress(0);
+          await bakeTerrainLook(pkg, (f) => {
+            if (alive) setBakeProgress(f);
+          });
+        } catch {
+          /* the display surface is optional: keep the raw ortho */
+        } finally {
+          if (alive) setBakeProgress(null);
+        }
         if (alive) setLoad({ kind: "ready", pkg });
       })
       .catch((err: Error) => {
@@ -344,7 +360,13 @@ export function App(): JSX.Element {
       <div className="console">
         <div className="loading-overlay">
           <div className="spinner" aria-hidden="true" />
-          <p>{t("Loading frozen Jezero data package…")}</p>
+          <p>
+            {bakeProgress === null
+              ? t("Loading frozen Jezero data package…")
+              : t("Preparing the terrain surface… {pct}%", {
+                  pct: Math.round(bakeProgress * 100),
+                })}
+          </p>
         </div>
       </div>
     );

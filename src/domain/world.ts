@@ -6,11 +6,14 @@
  * coordinates use a documented display exaggeration (RELIEF_SCALE) applied
  * consistently to terrain, markers and routes; horizontal geometry and all
  * computed numbers are never distorted. The 2D plan view is undistorted.
+ *
+ * RELIEF_SCALE is a DISPLAY number: 210 m of real relief across 5.12 km reads as
+ * a pancake at 1:1, so the plate is exaggerated. The UI states the factor.
  */
 
 import type { TerrainGrid } from "./types.js";
 
-export const RELIEF_SCALE = 3; // documented vertical display exaggeration
+export const RELIEF_SCALE = 4.5; // documented vertical display exaggeration
 /** vertical display offset: lowest region elevation maps to world y = 0 */
 export function datumElevationM(terrain: TerrainGrid): number {
   let min = Infinity;

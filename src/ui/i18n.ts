@@ -38,6 +38,7 @@ const ZH: Record<string, string> = {
   "Reset view": "复位视角",
   // load / failure states
   "Loading frozen Jezero data package…": "正在加载冻结的耶泽罗数据包…",
+  "Preparing the terrain surface… {pct}%": "正在生成地表显示层… {pct}%",
   "Data package failed to load: {msg}": "数据包加载失败：{msg}",
   "Retry": "重试",
   "3D rendering is unavailable right now — showing the 2D plan view. ":
@@ -137,7 +138,7 @@ const ZH: Record<string, string> = {
     "返航范围：返回基地的步行分钟数（反向 Dijkstra 成本场，模拟值）。它回答“此刻能否回家”，而非“任务能否完成”。边界按 ±1–2 个规划格呈现（20 米格 + 对齐不确定度）。",
   "mission position marker: light column at the walking position, enlarged for visibility (not to scale)":
     "任务位置光标：行进位置上的光柱标记，放大以便远距可见（非真实比例）",
-  "grid 20 m/cell · vertical relief ×3 display only": "网格 20 米/格 · 垂直起伏 ×3 仅用于显示",
+  "grid 20 m/cell · vertical relief ×4.5 display only": "网格 20 米/格 · 垂直起伏 ×4.5 仅用于显示",
   "controls: left-drag pan · right-drag rotate/pitch · wheel zoom": "操作：左键拖动平移 · 右键拖动旋转/俯仰 · 滚轮缩放",
   "units: meters · minutes · simulated 0–100 budget units": "单位：米 · 分钟 · 0–100 模拟预算单位",
   "lighting: key-light azimuth matches the DEM hillshade (NW) · warm fill is display only":
@@ -180,11 +181,13 @@ const ZH: Record<string, string> = {
   // display-art boundary (3D sandbox)
   "cut-away block: side faces, strata, depth and lit rim are artistic display — the top edge follows the real DEM cells":
     "剖切块体：侧壁、岩层纹理、切深与压边光均为美术显示，顶边跟随真实 DEM 网格",
+  "surface colour, baked sun shadows, micro-relief and haze are artistic display; the 2D plan view is the unmodified CTX ortho":
+    "地表配色、烘焙日照阴影、微观起伏与雾均为美术显示；2D 平面视图为未经处理的正射影像",
   "2D plan view draws the published CTX ortho unchanged; the 3D view is a display layer on the same data (see Display art in Sources & assumptions)":
     "2D 平面视图原样绘制发布的正射影像；3D 是同一份数据上的显示层（见“来源与假设”中的“显示美术”）",
   "Display art (not data)": "显示美术（非数据）",
-  "The 3D sandbox is a display layer on the published package. Artistic here: the cut-away block sides, their strata pattern and depth, the lit rim, the warm fill light and any future surface colour or near-field micro-detail. None of it feeds route, time, resource or landform-anchor values.":
-    "3D 沙盘是发布数据包之上的显示层。其中剖切块体的侧壁、岩层纹理与切深、压边光、暖色补光，以及后续可能加入的地表调色与近景微观细节，均为美术表达；它们不参与路线、时间、资源或地貌锚点数值。",
+  "The 3D sandbox is a display layer on the published package. Artistic here: the cut-away block sides, their strata pattern and depth, the lit rim, the warm fill light, the derived surface colour, the baked sun shadows, the micro-relief, the haze and the glow. None of it feeds route, time, resource or landform-anchor values; vertical relief is exaggerated ×4.5 and labelled.":
+    "3D 沙盘是发布数据包之上的显示层。其中剖切块体的侧壁、岩层纹理与切深、压边光、暖色补光、派生地表配色、烘焙日照阴影、微观起伏、雾与辉光，均为美术表达；它们不参与路线、时间、资源或地貌锚点数值。垂直起伏按 ×4.5 显示并已标注。",
   "The 2D plan view draws the published CTX ortho unchanged and stays the data-truth view; both views use the same DEM grid, the same route kernel and the same numbers.":
     "2D 平面视图原样绘制发布的正射影像，保持“数据真相视图”；两个视图使用同一 DEM 网格、同一路线内核与同一组数值。",
 };
