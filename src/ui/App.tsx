@@ -15,6 +15,7 @@ import type { LoadedPackage } from "../domain/load.js";
 import type { RouteRequest, RouteResult, Strategy } from "../domain/types.js";
 import { Sandbox, flyToSite, makeFpsStore, type FpsStore, type LoopMode } from "./Sandbox.js";
 import { marsHint, type MarsPhase } from "./MarsScene.js";
+import { FALLBACK_MISSIONS, type MissionLocation } from "../domain/missions.js";
 import { PlanView2D } from "./PlanView2D.js";
 import { WebglErrorBoundary } from "./WebglErrorBoundary.js";
 import { LegendDrawer, MissionPanel, ResultsPanel, SourcesDrawer, type LockedPlan } from "./panels.js";
@@ -59,7 +60,9 @@ export function App(): JSX.Element {
     new URLSearchParams(window.location.search).get("intro") === "auto",
   ).current;
   const [marsPhase, setMarsPhase] = useState<MarsPhase>(startOnMars ? "orbit" : "off");
-  const [marsTarget, setMarsTarget] = useState<string | null>(null);
+  const [missions, setMissions] = useState<MissionLocation[] | null>(null);
+  const [missionId, setMissionId] = useState("jezero");
+  const [marsNotice, setMarsNotice] = useState<string | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [loopMode, setLoopMode] = useState<LoopMode>("raf");
   const [helmet, setHelmet] = useState(false);
@@ -108,11 +111,41 @@ export function App(): JSX.Element {
   });
   const speedRef = useRef(8);
 
+  // mission locations first: the manifest decides which package to load
   useEffect(() => {
+    let alive = true;
+    fetch("/data/missions.json")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("missions.json"))))
+      .then((data: { missions?: MissionLocation[] }) => {
+        if (!alive) return;
+        setMissions(
+          Array.isArray(data.missions) && data.missions.length > 0
+            ? data.missions
+            : FALLBACK_MISSIONS,
+        );
+      })
+      .catch(() => {
+        if (alive) setMissions(FALLBACK_MISSIONS);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (missions === null) return;
+    const active =
+      missions.find((m) => m.id === missionId && m.package && m.path) ??
+      missions.find((m) => m.package && m.path) ??
+      FALLBACK_MISSIONS[0];
+    if (!active?.path) {
+      setLoad({ kind: "error", message: "missions.json has no terrain package" });
+      return;
+    }
     let alive = true;
     setLoad({ kind: "loading" });
     setBakeProgress(null);
-    loadPackageFromFetch("/data/jezero")
+    loadPackageFromFetch(active.path)
       .then(async (pkg) => {
         // bake the display surface before the sandbox mounts: it is artistic
         // only, so a failure falls back to the raw ortho instead of blocking
@@ -134,7 +167,7 @@ export function App(): JSX.Element {
     return () => {
       alive = false;
     };
-  }, [reloadCounter]);
+  }, [missions, missionId, reloadCounter]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -146,13 +179,13 @@ export function App(): JSX.Element {
 
   // ?intro=auto: perform the dive without a click (demo capture)
   useEffect(() => {
-    if (!autoIntro || marsPhase !== "orbit") return;
+    if (!autoIntro || marsPhase !== "orbit" || missions === null) return;
     const id = window.setTimeout(() => {
-      setMarsTarget("SITE-A");
+      setMarsNotice(null);
       setMarsPhase("dive");
     }, 2200);
     return () => window.clearTimeout(id);
-  }, [autoIntro, marsPhase]);
+  }, [autoIntro, marsPhase, missions]);
 
   useEffect(() => {
     applyLangToUrl(lang);
@@ -439,6 +472,28 @@ export function App(): JSX.Element {
     );
   }
 
+  const missionList = missions ?? FALLBACK_MISSIONS;
+  const activeMission =
+    missionList.find((m) => m.id === missionId && m.package) ??
+    missionList.find((m) => m.package) ??
+    FALLBACK_MISSIONS[0]!;
+  const pickMission = (id: string): void => {
+    const target = missionList.find((m) => m.id === id);
+    if (!target) return;
+    if (!target.package) {
+      setMarsNotice(
+        `${target.name} · ${target.label} — terrain package not included in this build`,
+      );
+      return;
+    }
+    if (id !== activeMission.id) {
+      setMarsNotice(`${target.name} · loading terrain package…`);
+      setMissionId(id);
+      return;
+    }
+    setMarsNotice(null);
+    setMarsPhase("dive");
+  };
   const show3d = view === "3d" && !webglFailed;
   const totalMinutes = missionRuntime.current?.timeline.totalMinutes ?? 0;
   const tl = missionRuntime.current?.timeline ?? null;
@@ -594,15 +649,14 @@ export function App(): JSX.Element {
                   helmet={helmet}
                   lockedRoute={lockedPolylines}
                   marsPhase={marsPhase}
-                  marsTarget={marsTarget}
+                  missions={missions ?? FALLBACK_MISSIONS}
+                  activeMissionId={activeMission.id}
                   introStartedOff={!startOnMars}
-                  onMarsPick={(id) => {
-                    setMarsTarget(id);
-                    setMarsPhase("dive");
-                  }}
-                  onMarsDone={(id) => {
+                  onMarsPick={pickMission}
+                  onMarsUnavailable={pickMission}
+                  onMarsDone={() => {
                     setMarsPhase("off");
-                    if (id !== "BASE") setSelectedSiteId(id);
+                    setSelectedSiteId(null);
                   }}
                 />
               </div>
@@ -685,7 +739,7 @@ export function App(): JSX.Element {
             onClick={() => {
               setSelectedSiteId(null);
               setHelmet(false);
-              setMarsTarget(null);
+              setMarsNotice(null);
               setMarsPhase("orbit");
             }}
           >
@@ -855,8 +909,15 @@ export function App(): JSX.Element {
                 {lang === "zh" ? "接近 · 耶泽罗任务区" : "APPROACH · JEZERO MISSION AREA"}
               </span>
             </div>
+            {marsNotice !== null && <div className="mars-notice">{marsNotice}</div>}
             <div className="mars-hint">
-              <span>{marsHint(lang)}</span>
+              <span>
+                {marsHint(
+                  lang,
+                  (missions ?? FALLBACK_MISSIONS).filter((m) => m.package).length,
+                  (missions ?? FALLBACK_MISSIONS).length,
+                )}
+              </span>
               <button
                 type="button"
                 className="small"
@@ -868,8 +929,25 @@ export function App(): JSX.Element {
                 {lang === "zh" ? "跳过" : "Skip"}
               </button>
             </div>
+            <div className="mars-missions">
+              <div className="head">MISSION AREAS</div>
+              {missionList.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={`mars-mission${m.package ? "" : " is-dim"}${
+                    m.id === activeMission.id ? " is-active" : ""
+                  }`}
+                  onClick={() => pickMission(m.id)}
+                  title={m.package ? m.label : `${m.label} — terrain package not included`}
+                >
+                  <b>{m.name}</b>
+                  <span>{m.package ? "TERRAIN LOADED" : "NO PACKAGE"}</span>
+                </button>
+              ))}
+            </div>
             <div className="mars-credit">
-              VIKING MDIM 2.1 · NASA/JPL/USGS · TARGET PINS FANNED FOR LEGIBILITY
+              VIKING MDIM 2.1 · NASA/JPL/USGS · {missionList.length} MISSION AREAS
             </div>
           </div>
         )}

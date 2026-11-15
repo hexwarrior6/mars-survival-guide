@@ -78,6 +78,7 @@ import { getTerrainLook } from "./terrainLook.js";
 import { createFieldTexture, FIELD_MAX_MINUTES, updateFieldTexture } from "./fieldMask.js";
 import { Dust, PostFXGate, Sky, SUN_DIR } from "./SceneDressing.js";
 import { MarsScene, type MarsPhase } from "./MarsScene.js";
+import type { MissionLocation } from "../domain/missions.js";
 import { Boulders, HelmetCam } from "./HelmetCam.js";
 import type { Lang } from "./i18n.js";
 
@@ -764,9 +765,11 @@ export function Sandbox({
   helmet,
   lockedRoute,
   marsPhase,
-  marsTarget,
+  missions,
+  activeMissionId,
   introStartedOff,
   onMarsPick,
+  onMarsUnavailable,
   onMarsDone,
 }: {
   pkg: LoadedPackage;
@@ -788,11 +791,13 @@ export function Sandbox({
   lockedRoute: { out: { x: number; y: number; z: number }[]; ret: { x: number; y: number; z: number }[] } | null;
   /** opening Mars stage state */
   marsPhase: MarsPhase;
-  marsTarget: string | null;
+  missions: MissionLocation[];
+  activeMissionId: string;
   /** whether the normal opening camera move should run once */
   introStartedOff: boolean;
   onMarsPick: (id: string) => void;
-  onMarsDone: (id: string) => void;
+  onMarsUnavailable: (id: string) => void;
+  onMarsDone: () => void;
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
   // returnable-range mask lives in a texture: the tint follows the terrain
@@ -937,9 +942,11 @@ export function Sandbox({
         <Suspense fallback={null}>
           <MarsScene
             pkg={pkg}
+            missions={missions}
+            activeMissionId={activeMissionId}
             phase={marsPhase}
-            targetId={marsTarget}
             onPick={onMarsPick}
+            onUnavailable={onMarsUnavailable}
             onDiveDone={onMarsDone}
           />
         </Suspense>

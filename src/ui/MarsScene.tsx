@@ -1,25 +1,23 @@
 /** One-take Mars approach: a true-scale Viking globe under the same camera that
- * later frames the Jezero sandbox. No second canvas and no cut — the camera
- * descends along a log-distance path while the globe fades into the terrain.
+ * frames the loaded region. No second canvas and no cut — the camera descends
+ * along a log-distance path while the globe fades into the terrain.
  *
- * The globe is display context only: the Jezero point comes from the package's
- * lat/lon bounds, the four targets are the real base + science sites, and none
- * of it feeds routing, timing or resources.
+ * Locations come from public/data/missions.json. An entry with a terrain
+ * package can be entered; the others are drawn as future mission areas. The
+ * active package's lat/lon bounds decide how the globe is oriented, so adding
+ * another package with its own bounds is all it takes to make its pin real.
+ *
+ * Display context only: nothing here feeds routing, timing or resources.
  */
 
 import { useEffect, useMemo, useRef } from "react";
 import type { JSX } from "react";
-import { Html, Line, useTexture } from "@react-three/drei";
+import { Html, useTexture } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { LoadedPackage } from "../domain/load.js";
-import {
-  cellWorldPosition,
-  overviewPose,
-  sitePose,
-  worldTransform,
-  type WorldPoint,
-} from "../domain/world.js";
+import type { MissionLocation } from "../domain/missions.js";
+import { overviewPose, worldTransform } from "../domain/world.js";
 import type { Lang } from "./i18n.js";
 
 const GLOBE_TEXTURE = "/data/mars/viking_mdim21_color_2048.jpg";
@@ -34,7 +32,7 @@ export const MARS_ORBIT_POS: [number, number, number] = [
 ];
 /** MDIM 2.1 is a 0–360 east product displayed from 180°W */
 const LON_ORIGIN_DEG = 180;
-const DIVE_SECONDS = 6.2;
+const DIVE_SECONDS = 6.6;
 const EASE = (x: number): number => x * x * (3 - 2 * x);
 const smoothstep = (e0: number, e1: number, x: number): number => {
   const t = Math.min(Math.max((x - e0) / (e1 - e0), 0), 1);
@@ -65,26 +63,22 @@ function setClip(camera: THREE.PerspectiveCamera, dist: number): void {
   }
 }
 
-interface Target {
-  id: string;
-  label: string;
-  point: WorldPoint;
-  /** world-space offset of the fanned pin from the region centre */
-  pin: [number, number, number];
-}
-
 export function MarsScene({
   pkg,
+  missions,
+  activeMissionId,
   phase,
-  targetId,
   onPick,
+  onUnavailable,
   onDiveDone,
 }: {
   pkg: LoadedPackage;
+  missions: MissionLocation[];
+  activeMissionId: string;
   phase: MarsPhase;
-  targetId: string | null;
   onPick: (id: string) => void;
-  onDiveDone: (id: string) => void;
+  onUnavailable: (id: string) => void;
+  onDiveDone: () => void;
 }): JSX.Element {
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
   const texture = useTexture(GLOBE_TEXTURE);
@@ -92,6 +86,8 @@ export function MarsScene({
   texture.anisotropy = 8;
 
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
+  // the loaded package defines where the globe must point: its centre is the
+  // point under the camera, and the terrain plate is tangent there
   const lat = (pkg.region.boundsLatLon.north + pkg.region.boundsLatLon.south) / 2;
   const lon = (pkg.region.boundsLatLon.east + pkg.region.boundsLatLon.west) / 2;
   const normal = useMemo(() => latLonToPoint(lat, lon, 1).normalize(), [lat, lon]);
@@ -103,39 +99,33 @@ export function MarsScene({
   const globeMat = useRef<THREE.MeshStandardMaterial | null>(null);
   const hazeMat = useRef<THREE.ShaderMaterial | null>(null);
   const globeGroup = useRef<THREE.Group | null>(null);
+  const globeMesh = useRef<THREE.Mesh>(null!);
   const opacity = useRef(1);
-  const dive = useRef<{ t: number; from: THREE.Vector3; to: THREE.Vector3; fromT: THREE.Vector3; toT: THREE.Vector3; dist0: number; dist1: number; done: boolean } | null>(null);
-  const lastTarget = useRef<string | null>(null);
+  const dive = useRef<{
+    t: number;
+    from: THREE.Vector3;
+    to: THREE.Vector3;
+    fromT: THREE.Vector3;
+    toT: THREE.Vector3;
+    dist0: number;
+    dist1: number;
+    done: boolean;
+  } | null>(null);
 
-  // real targets: base + science sites, fanned out on the globe for legibility
-  const targets = useMemo<Target[]>(() => {
-    const base = cellWorldPosition(
-      pkg.terrain,
-      t,
-      pkg.scenario.base.rowCol[0],
-      pkg.scenario.base.rowCol[1],
-      0,
-    );
-    const spread = [-1750000, -580000, 580000, 1750000];
-    // place the fan on the sphere's surface (not the tangent plane) so the pins
-    // sit on the planet instead of floating above it
-    const pin = (x: number, z: number): [number, number, number] => {
-      const d2 = x * x + z * z;
-      return [x, -d2 / (2 * MARS_RADIUS), z];
-    };
-    const list: Target[] = [
-      { id: "BASE", label: "BASE", point: base, pin: pin(spread[0] as number, -350000) },
-    ];
-    pkg.sites.forEach((s, i) => {
-      list.push({
-        id: s.id,
-        label: s.id,
-        point: cellWorldPosition(pkg.terrain, t, s.rowCol[0], s.rowCol[1], 0),
-        pin: pin(spread[i + 1] ?? 0, -350000),
-      });
-    });
-    return list;
-  }, [pkg, t]);
+  const pins = useMemo(
+    () =>
+      missions.map((m) => {
+        const dir = latLonToPoint(m.lat, m.lon, 1).normalize().applyQuaternion(spin);
+        return {
+          mission: m,
+          pos: dir
+            .clone()
+            .multiplyScalar(MARS_RADIUS * 1.004)
+            .add(new THREE.Vector3(0, -MARS_RADIUS, 0)),
+        };
+      }),
+    [missions, spin],
+  );
 
   // ---- camera: orbit pose -------------------------------------------------
   useEffect(() => {
@@ -148,16 +138,10 @@ export function MarsScene({
     dive.current = null;
   }, [phase, camera]);
 
-  // ---- camera: dive ------------------------------------------------------
+  // ---- camera: dive to the loaded region ---------------------------------
   useEffect(() => {
-    if (phase !== "dive" || targetId === null) return;
-    const target = targets.find((x) => x.id === targetId);
-    if (!target) return;
-    const basePoint = targets[0]?.point ?? target.point;
-    const end =
-      target.id === "BASE"
-        ? overviewPose(t, 400)
-        : sitePose(t, target.point, basePoint);
+    if (phase !== "dive") return;
+    const end = overviewPose(t, 400);
     const from = camera.position.clone();
     const fromT = new THREE.Vector3(0, 0, 0);
     const to = new THREE.Vector3(end.position.x, end.position.y, end.position.z);
@@ -172,8 +156,7 @@ export function MarsScene({
       dist1: to.distanceTo(toT),
       done: false,
     };
-    lastTarget.current = targetId;
-  }, [phase, targetId, targets, t, camera]);
+  }, [phase, t, camera]);
 
   useFrame((_, delta) => {
     const d = dive.current;
@@ -183,16 +166,12 @@ export function MarsScene({
       // log-distance dolly: constant perceived zoom instead of a linear rush
       const dist = Math.exp(Math.log(d.dist0) + (Math.log(d.dist1) - Math.log(d.dist0)) * k);
       const target = d.fromT.clone().lerp(d.toT, smoothstep(0.55, 1, k));
-      // camera - target, not the reverse: that vector points up/outward and is
-      // what places the camera at `dist` from the target
+      // camera - target, not the reverse: that vector points up/outward
       const dir = d.from
         .clone()
         .sub(d.fromT)
         .normalize()
-        .lerp(
-          d.to.clone().sub(d.toT).normalize(),
-          smoothstep(0.15, 0.98, k),
-        )
+        .lerp(d.to.clone().sub(d.toT).normalize(), smoothstep(0.15, 0.98, k))
         .normalize();
       camera.position.copy(target).addScaledVector(dir, dist);
       camera.lookAt(target);
@@ -200,8 +179,7 @@ export function MarsScene({
       opacity.current = smoothstep(Math.log(2600), Math.log(9000), Math.log(dist));
       if (d.t >= 1) {
         d.done = true;
-        const id = lastTarget.current;
-        if (id !== null) onDiveDone(id);
+        onDiveDone();
       }
     }
     const mat = globeMat.current;
@@ -235,7 +213,7 @@ export function MarsScene({
         position={[0, -MARS_RADIUS, 0]}
         name="mars-globe"
       >
-        <mesh>
+        <mesh ref={globeMesh}>
           <sphereGeometry args={[MARS_RADIUS, 128, 96]} />
           <meshStandardMaterial
             ref={globeMat}
@@ -281,37 +259,37 @@ export function MarsScene({
       </group>
 
       {pinsVisible &&
-        targets.map((target) => (
-          <group key={target.id}>
-            <Line
-              points={[
-                [target.pin[0], target.pin[1] + 14, target.pin[2]],
-                [0, 20, 0],
-              ]}
-              color="#ffb45e"
-              lineWidth={1}
-              transparent
-              opacity={0.5}
-              depthTest={false}
-            />
-            <Html center position={target.pin} zIndexRange={[40, 40]} style={{ pointerEvents: "auto" }}>
+        pins.map(({ mission, pos }) => {
+          const available = mission.package === true;
+          const active = mission.id === activeMissionId;
+          return (
+            <Html
+              key={mission.id}
+              position={[pos.x, pos.y, pos.z]}
+              center
+              occlude={[globeMesh]}
+              zIndexRange={[40, 40]}
+              style={{ pointerEvents: "auto" }}
+            >
               <button
                 type="button"
-                className="mars-pin"
-                onClick={() => onPick(target.id)}
+                className={`mars-pin${available ? "" : " is-dim"}${active ? " is-active" : ""}`}
+                onClick={() => (available ? onPick(mission.id) : onUnavailable(mission.id))}
               >
-                <b>{target.label}</b>
+                <b>{mission.name}</b>
+                <span>{available ? mission.label : `${mission.label} · no package`}</span>
               </button>
             </Html>
-          </group>
-        ))}
+          );
+        })}
     </>
   );
 }
 
-/** Small DOM label helper kept here so both languages read the same. */
-export function marsHint(lang: Lang): string {
-  return lang === "zh"
-    ? "选择火星上的一个任务点，镜头会一镜到底落下去"
-    : "Choose a target on Mars — the camera descends in one shot";
+/** Console hint shared by the Mars HUD. */
+export function marsHint(lang: Lang, available: number, total: number): string {
+  if (lang === "zh") {
+    return `选择要加载的任务地点（${available}/${total} 个有地形数据）`;
+  }
+  return `Choose a mission area to load (${available} of ${total} have terrain data)`;
 }

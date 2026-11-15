@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0",
+  "note": "Mission locations shown on the Mars approach globe. An entry with a `path` and `package: true` has a terrain package under public/; entries without one are shown as future mission areas and cannot be entered yet.",
+  "missions": [
+    {
+      "id": "jezero",
+      "name": "JEZERO",
+      "label": "Jezero Crater · western delta",
+      "lat": 18.47095,
+      "lon": 77.42716,
+      "path": "/data/jezero",
+      "package": true
+    },
+    {
+      "id": "gale",
+      "name": "GALE",
+      "label": "Gale Crater",
+      "lat": -5.4,
+      "lon": 137.8,
+      "package": false
+    },
+    {
+      "id": "mawrth",
+      "name": "MAWRTH",
+      "label": "Mawrth Vallis",
+      "lat": 22.3,
+      "lon": 342.1,
+      "package": false
+    },
+    {
+      "id": "eberswalde",
+      "name": "EBERSWALDE",
+      "label": "Eberswalde Crater",
+      "lat": -23.9,
+      "lon": 326.8,
+      "package": false
+    }
+  ]
+}

@@ -812,3 +812,94 @@ table.results-table { width: 100%; border-collapse: collapse; font-size: 11.5px;
     white-space: normal;
   }
 }
+
+.mars-pin.is-dim {
+  opacity: 0.58;
+}
+.mars-pin.is-dim b {
+  color: var(--muted-strong);
+}
+.mars-pin.is-active {
+  border-color: rgba(255, 180, 94, 0.95);
+  box-shadow: 0 0 0 1px rgba(255, 180, 94, 0.25), 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.mars-notice {
+  position: absolute;
+  left: 50%;
+  bottom: 100px;
+  transform: translateX(-50%);
+  max-width: min(680px, calc(100vw - 40px));
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 180, 94, 0.45);
+  border-radius: 8px;
+  background: rgba(24, 16, 11, 0.85);
+  color: var(--accent-strong);
+  font-size: 11.5px;
+  letter-spacing: 0.03em;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+.mars-hud.is-diving .mars-notice {
+  opacity: 0;
+}
+
+.mars-missions {
+  position: absolute;
+  left: 26px;
+  bottom: 40px;
+  width: 218px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: auto;
+}
+.mars-missions .head {
+  color: var(--muted);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  margin-bottom: 2px;
+}
+.mars-mission {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 9px;
+  background: rgba(18, 12, 8, 0.62);
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  color: var(--warm-white);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.mars-mission b {
+  color: var(--warm-white);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+.mars-mission span {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.mars-mission.is-active {
+  border-color: rgba(255, 180, 94, 0.7);
+}
+.mars-mission.is-active b,
+.mars-mission.is-active span {
+  color: var(--accent);
+}
+.mars-mission.is-dim {
+  opacity: 0.6;
+}
+.mars-hud.is-diving .mars-missions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
