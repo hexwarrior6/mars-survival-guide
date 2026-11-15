@@ -134,6 +134,7 @@ export function MarsScene({
   const globeMesh = useRef<THREE.Mesh>(null!);
   const opacity = useRef(1);
   const dragQ = useRef(new THREE.Quaternion());
+  const zoom = useRef({ current: MARS_ORBIT_DIST, target: MARS_ORBIT_DIST });
   const stageRef = useRef(-1);
   const dive = useRef<{
     elapsed: number;
@@ -160,28 +161,22 @@ export function MarsScene({
     if (phase !== "orbit") return;
     const el = gl.domElement;
     el.style.cursor = "grab";
-    const right = new THREE.Vector3();
     let active = false;
     let lastX = 0;
-    let lastY = 0;
     const down = (e: PointerEvent): void => {
       if (e.button !== 0) return;
       active = true;
       lastX = e.clientX;
-      lastY = e.clientY;
       el.style.cursor = "grabbing";
       el.setPointerCapture(e.pointerId);
     };
     const move = (e: PointerEvent): void => {
       if (!active) return;
       const dx = e.clientX - lastX;
-      const dy = e.clientY - lastY;
       lastX = e.clientX;
-      lastY = e.clientY;
-      right.setFromMatrixColumn(camera.matrixWorld, 0);
+      // horizontal drag only: the low-pole tilt was disorienting
       const qy = new THREE.Quaternion().setFromAxisAngle(UP, dx * 0.0055);
-      const qx = new THREE.Quaternion().setFromAxisAngle(right, dy * 0.0055);
-      dragQ.current.premultiply(qy).premultiply(qx);
+      dragQ.current.premultiply(qy);
     };
     const up = (e: PointerEvent): void => {
       if (!active) return;
@@ -189,16 +184,26 @@ export function MarsScene({
       el.style.cursor = "grab";
       if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
     };
+    const wheel = (e: WheelEvent): void => {
+      e.preventDefault();
+      const k = Math.exp(e.deltaY * 0.0012);
+      zoom.current.target = Math.min(
+        Math.max(zoom.current.target * k, MARS_RADIUS * 0.35),
+        MARS_RADIUS * 2.8,
+      );
+    };
     el.addEventListener("pointerdown", down);
+    el.addEventListener("wheel", wheel, { passive: false });
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     return () => {
       el.removeEventListener("pointerdown", down);
+      el.removeEventListener("wheel", wheel);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       el.style.cursor = "";
     };
-  }, [phase, gl, camera]);
+  }, [phase, gl]);
 
   // ---- camera: orbit pose -------------------------------------------------
   useEffect(() => {
@@ -211,6 +216,9 @@ export function MarsScene({
     dive.current = null;
     stageRef.current = -1;
     dragQ.current.identity();
+    const d0 = camera.position.length();
+    zoom.current.current = d0;
+    zoom.current.target = d0;
   }, [phase, camera]);
 
   // ---- camera: dive to the loaded region ---------------------------------
@@ -234,6 +242,14 @@ export function MarsScene({
   }, [phase, t, camera]);
 
   useFrame((_, delta) => {
+    if (phase === "orbit") {
+      const z = zoom.current;
+      z.current += (z.target - z.current) * (1 - Math.exp(-delta * 9));
+      const dir = camera.position.clone().normalize();
+      camera.position.copy(dir.multiplyScalar(z.current));
+      camera.lookAt(0, 0, 0);
+      setClip(camera, z.current);
+    }
     const d = dive.current;
     if (phase === "dive" && d !== null && !d.done) {
       d.elapsed = Math.min(DIVE_SECONDS, d.elapsed + delta);
@@ -377,7 +393,7 @@ export function MarsScene({
 /** Console hint shared by the Mars HUD. */
 export function marsHint(lang: Lang, available: number, total: number): string {
   if (lang === "zh") {
-    return `拖动旋转星球 · 选择要加载的任务地点（${available}/${total} 个有地形数据）`;
+    return `左右拖动旋转 · 滚轮缩放 · 选择任务地点（${available}/${total} 个有地形数据）`;
   }
-  return `Drag to rotate · choose a mission area (${available} of ${total} with terrain)`;
+  return `Drag left/right · scroll to zoom · pick a mission area (${available} of ${total} with terrain)`;
 }
