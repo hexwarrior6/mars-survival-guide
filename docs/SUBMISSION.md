@@ -1,5 +1,11 @@
 # Mars Survival Guide: Martian Map
 
+Live application: https://mars-survival-guide-green.vercel.app/
+
+Submitted demonstration: https://youtu.be/41C24oOkQJE
+
+Submitted for judging: 2026-11-15 23:49 Singapore time, confirmed by the competition website. The demonstration is approximately 35 seconds and exceeds the stated 30-second limit; this confirmation does not establish Global Award eligibility.
+
 ## Project summary
 
 How far can an astronaut explore and still get home? Mars Survival Guide turns real NASA terrain into an interactive Marswalk planning console. Explore Jezero Crater in 3D, choose a science objective, compare round-trip routes, and see how time, terrain and resource reserves constrain the mission. Replay a simulated battery loss or blocked area and watch the return plan change. Every observation, calculation and simulated assumption is identified, making the trade-offs visible and open to inspection.

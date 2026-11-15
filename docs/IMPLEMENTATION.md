@@ -1,6 +1,6 @@
 # 分阶段实施与验收
 
-基线日期：2026-11-14。依据：[产品与工程约定](SPECIFICATION.md)、[调研](RESEARCH.md)。**2026-11-15 更新：阶段 1–4、视觉改版 V1–V4 的实现与验收记录见第 11 节；阶段 5 正在执行公开部署与材料整理，演示视频待参赛者提供。** 最新的视觉与动效目标见 [视觉方向](VISUAL-DIRECTION.md)。
+基线日期：2026-11-14。依据：[产品与工程约定](SPECIFICATION.md)、[调研](RESEARCH.md)。**2026-11-15 更新：阶段 1–4、视觉改版 V1–V4 的实现与验收记录见第 11 节；阶段 5 已完成公开部署和材料提交；2026-11-15 23:49（Singapore）网站确认已提交评审，视频约 35 秒的超时限制见末尾记录。** 最新的视觉与动效目标见 [视觉方向](VISUAL-DIRECTION.md)。
 
 ## 1. 阶段总表
 
@@ -497,15 +497,15 @@ V1 是其余阶段的地基（布局承载时间轴/边界/对比）。V2 与 V3
 **下一阶段输入**：§7.2 的 V1 范围与验收；`RouteLines` hooks 修复与 i18n 漏译修复随 V1 交付。
 
 
-### 阶段 5：公开部署与提交材料 — 2026-11-15（进行中；视频与最终评审提交待完成）
+### 阶段 5：公开部署与提交材料 — 2026-11-15（已部署、已提交评审；保留视频超时限制）
 
 - Vercel 已从公开 GitHub 仓库的 `main` 建立生产项目，首个验证部署对应 `89a3753`；公开 URL： https://mars-survival-guide-green.vercel.app/ 。后续推送由 Git 集成自动构建。
 - 英文项目简介、详细说明、NASA 数据用途、引用、AI 使用披露与局限见 `docs/SUBMISSION.md`。README 包含生产地址与真实线上截图 `docs/visuals/submission-live.png`。
 - 比赛账户已核实为 Liang-Tzu 团队所有者，Singapore 站点，题目为 Interplanetary Survival Guide: Martian Map。
 - 比赛表单已保存：项目名称、505 字符英文简介、详细说明、生产链接、6 条 NASA 数据链接、11 条其他引用、6 类实际 AI 用途及要求的确认项。网站显示 Last Saved: 15 November 2026 23:18；刷新后读回了已保存内容。
-- **演示视频链接为空，尚未 Submit for Judging。** 该字段为正式提交必填；用户要求稍后自行上传视频。不能将已保存材料视为已提交评审。截止时间为 2026-11-15 23:59（Singapore）；提交指南允许截止前编辑并重新提交，截止后不接受修改。
+- 演示视频已填写为 https://youtu.be/41C24oOkQJE 。于 2026-11-15 23:49（Singapore）实际点击 Submit for Judging；网站显示 **Project Submitted for Judging** 及 **Last Submitted: 15 November 2026 23:49**。视频页面可播放，实际媒体时长 35.021 秒，超过 30 秒要求；网站接受提交不代表全球奖项资格已确认。
 - 实际验证：类型检查、生产构建、14 项数据文件校验通过。初次并行测试 66/67（50 ms 性能门槛在并行负载下超时）；串行重跑 67/67。收尾时镜头新增两项测试，最新串行测试 **69/69**，类型、数据与构建检查均通过。没有放宽测试阈值。
 - 线上实际打开 3D 页面，SITE-A 规划读到 2166 m / 91 min / O₂ 18.9 / 余量 61.1；播放后读到 MISSION COMPLETE。首页、带 intro 查询的地址、region.json、高程二进制、Viking 球面图及区域图均经无认证 HTTP 请求返回 200。未做跨设备性能或完整视觉回归验收。
-- S1：构建和线上关键资产检查通过；S2：英文材料已保存，视频待提供；S3：用户自行提供视频，未完成；S4：来源、假设与 AI 使用披露已整理；S5：团队与表单已核实、内容已保存，正式评审提交待视频。
+- S1：构建和线上关键资产检查通过；S2：英文材料和视频链接已提交；S3：视频可播放，但 35.021 秒超过 30 秒要求；S4：来源、假设与 AI 使用披露已整理；S5：团队与表单已核实，正式评审提交成功回执已读到。
 
 正式提交指南： https://www.spaceappschallenge.org/resources/project-submission-guide/ 。比赛表单入口： https://www.spaceappschallenge.org/2026/find-a-team/liang-tzu/?tab=project 。

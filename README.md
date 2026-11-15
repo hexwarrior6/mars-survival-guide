@@ -127,6 +127,6 @@ Not implemented (documented future extensions in `docs/IMPLEMENTATION.md` §8): 
 
 ## Attribution and participation
 
-**Liang-Tzu**, Singapore Local Event. Team ownership and the selected challenge were verified on the competition website on 2026-11-15. The public application and source repository are available; competition materials are being saved, with the demonstration video and final judging submission pending. See [AI use disclosure and references](docs/SUBMISSION.md).
+**Liang-Tzu**, Singapore Local Event. Team ownership and the selected challenge were verified on the competition website on 2026-11-15. The project was submitted for judging on 2026-11-15 at 23:49 Singapore time; the competition website confirmed "Project Submitted for Judging". [Watch the submitted demo](https://youtu.be/41C24oOkQJE). The submitted video is approximately 35 seconds, exceeding the competition's 30-second limit; submission confirmation does not establish Global Award eligibility. See [AI use disclosure and references](docs/SUBMISSION.md).
 
 Code is licensed under [MIT](LICENSE). External datasets and imagery retain their own terms and attribution requirements; the repository license does not relicense them.
