@@ -72,6 +72,8 @@ import {
 import type { CostField } from "../routing/field.js";
 import { commandCamera, readCameraCommand } from "./cameraBus.js";
 import { MissionLayer } from "./MissionLayer.js";
+import { BlockSides } from "./BlockSides.js";
+import { LabelLayout, type LabelAnchor } from "./LabelLayout.js";
 import type { Lang } from "./i18n.js";
 
 const LIFT_M = 1.5; // routes render 1.5 m above ground (display only)
@@ -287,13 +289,21 @@ function Markers({
   selectedSiteId,
   overlayRef,
   lang,
+  showAllLabels,
+  labelObstacles,
 }: {
   pkg: LoadedPackage;
   t: WorldTransform;
   selectedSiteId: string | null;
   overlayRef: React.RefObject<HTMLDivElement | null>;
   lang: Lang;
+  /** false once a plan is on screen: only the selected site + base keep labels,
+   *  so the route is not buried under site chips at overview range */
+  showAllLabels: boolean;
+  /** planned route in world space: labels keep clear of it */
+  labelObstacles: THREE.Vector3[];
 }): JSX.Element {
+  const labelEls = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const siteMarkers = useMemo(
     () =>
       pkg.sites.map((site) => ({
@@ -313,10 +323,25 @@ function Markers({
       ),
     [pkg, t],
   );
+  // screen-space collision input: the same points the drei labels are anchored to
+  const labelAnchors: LabelAnchor[] = [
+    ...siteMarkers
+      .filter(({ site }) => showAllLabels || site.id === selectedSiteId)
+      .map(({ site, pos }, i) => ({
+        id: site.id,
+        x: pos.x,
+        y: pos.y + 44,
+        z: pos.z,
+        priority: site.id === selectedSiteId ? 0 : 2 + i * 0.01,
+      })),
+    { id: "BASE", x: basePos.x + 82, y: basePos.y + 56, z: basePos.z, priority: 1 },
+  ];
+
   return (
     <group name="markers">
       {siteMarkers.map(({ site, pos }) => {
         const selected = site.id === selectedSiteId;
+        const showLabel = showAllLabels || selected;
         return (
           <group key={site.id} position={[pos.x, pos.y, pos.z]}>
             <mesh position={[0, 16, 0]}>
@@ -327,16 +352,21 @@ function Markers({
               <cylinderGeometry args={[0.9, 0.9, 14, 8]} />
               <meshBasicMaterial color={selected ? "#ffb45e" : "#f5ead9"} />
             </mesh>
-            <Html
+            {showLabel && <Html
               position={[0, 44, 0]}
               center
               portal={overlayRef as never}
               zIndexRange={[20, 0]}
             >
-              <div className="site-label">
+              <div
+                className="site-label"
+                ref={(el) => {
+                  labelEls.current.set(site.id, el);
+                }}
+              >
                 <b>{site.id}</b> {site.name} ±{site.positionUncertaintyM} m
               </div>
-            </Html>
+            </Html>}
           </group>
         );
       })}
@@ -381,14 +411,22 @@ function Markers({
           </mesh>
         </group>
         <Html
-          position={[34, 42, 0]}
+          position={[82, 56, 0]}
           center
           portal={overlayRef as never}
           zIndexRange={[20, 0]}
         >
-          <div className="site-label base-label">{lang === "zh" ? "基地（模拟）· 比例人形 1.7 米" : "BASE (simulated) · scale figure 1.7 m"}</div>
+          <div
+            className="site-label base-label"
+            ref={(el) => {
+              labelEls.current.set("BASE", el);
+            }}
+          >
+            {lang === "zh" ? "基地（模拟）· 比例人形 1.7 米" : "BASE (simulated) · scale figure 1.7 m"}
+          </div>
         </Html>
       </group>
+      <LabelLayout anchors={labelAnchors} elements={labelEls} obstacles={labelObstacles} />
     </group>
   );
 }
@@ -656,6 +694,17 @@ export function Sandbox({
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  // planned route in world space, used to keep the HTML labels off the plan
+  const labelObstacles = useMemo(() => {
+    if (result === null) return [];
+    const candidate = result.candidates.find((c) => c.strategy === strategy) ?? null;
+    if (candidate === null) return [];
+    const cells = [...candidate.outbound.pathCells, ...candidate.returnRoute.pathCells];
+    return routePolyline(pkg.terrain, t, cells, 1.5).map(
+      (p) => new THREE.Vector3(p.x, p.y, p.z),
+    );
+  }, [result, strategy, pkg, t]);
+
   // closure rectangle shows once the scheduled closure event has actually fired
   const rtNow = runtimeRef.current;
   const closureActive = !!(rtNow?.schedule.closure && rtNow.T >= rtNow.schedule.closure.atSimMinutes);
@@ -664,7 +713,13 @@ export function Sandbox({
     <FrameDriver onLoopMode={onLoopMode} />
     <Canvas
       frameloop="never"
-      camera={{ fov: 46, near: 1, far: 30000, position: [1500, 7600, 8300] }}
+      /* near = 50, not 1: the sandbox lives at 300–9000 units, and a 1-unit
+         near plane burns depth precision at overview range — routes lifted
+         4.5 units off the ground were being depth-occluded by the terrain. */
+      /* near = 50, not 1: the sandbox lives at 300–9000 units, and a 1-unit
+         near plane burns depth precision at overview range (routes lifted
+         4.5 units off the ground start z-fighting with the terrain). */
+      camera={{ fov: 46, near: 50, far: 30000, position: [1500, 7600, 8300] }}
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={(state) => {
@@ -677,11 +732,22 @@ export function Sandbox({
       {/* key light: azimuth matches the DEM hillshade convention (NW) */}
       <directionalLight position={[-2800, 5600, -2600]} intensity={2.8} color="#ffdfc0" />
       {/* warm display-only fill from the opposite quarter to lift the shadows */}
-      <directionalLight position={[3200, 1600, 3400]} intensity={0.4} color="#b98a5e" />
+      <directionalLight position={[3200, 1600, 3400]} intensity={0.85} color="#d19a6a" />
       <Suspense fallback={null}>
         <TerrainMesh terrain={pkg.terrain} t={t} />
       </Suspense>
-      <Markers pkg={pkg} t={t} selectedSiteId={selectedSiteId} overlayRef={overlayRef} lang={lang} />
+      {/* display-only cut-away block: side faces + base slab + lit rim.
+          Strata pattern is artistic; geometry anchors are the real DEM edge. */}
+      <BlockSides terrain={pkg.terrain} t={t} />
+      <Markers
+        pkg={pkg}
+        t={t}
+        selectedSiteId={selectedSiteId}
+        overlayRef={overlayRef}
+        lang={lang}
+        showAllLabels={result === null}
+        labelObstacles={labelObstacles}
+      />
       <RouteLines
         terrain={pkg.terrain}
         t={t}

@@ -137,6 +137,27 @@ describe("routes and poses", () => {
     expect(dist).toBeGreaterThan(1000);
   });
 
+  it("selecting a site keeps the route large: close framing, not an overview", () => {
+    const grid = makeGrid({ width: 4, height: 4, cellSizeM: 20, elevations: 100 });
+    const t = worldTransform(grid);
+    // a round trip about the size of the frozen Jezero scenarios
+    const pose = routePose(t, [
+      { x: -500, y: 100, z: -400 },
+      { x: 500, y: 200, z: 400 },
+    ]);
+    const dist = Math.hypot(
+      pose.position.x - pose.target.x,
+      pose.position.y - pose.target.y,
+      pose.position.z - pose.target.z,
+    );
+    // the route fills the frame: distance stays under the controls floor + margin
+    expect(dist).toBeLessThanOrEqual(2400);
+    // and it is a 45° oblique, which is what made the plate read big
+    const ground = Math.hypot(pose.position.x - pose.target.x, pose.position.z - pose.target.z);
+    const rise = pose.position.y - pose.target.y;
+    expect(Math.abs(Math.atan2(rise, ground) - Math.PI / 4)).toBeLessThan(0.02);
+  });
+
   it("route pose clamps tiny routes to a minimum and huge routes to the max distance", () => {
     const grid = makeGrid({ width: 4, height: 4, cellSizeM: 20, elevations: 100 });
     const t = worldTransform(grid);

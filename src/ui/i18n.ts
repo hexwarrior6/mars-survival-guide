@@ -177,6 +177,16 @@ const ZH: Record<string, string> = {
   "BASE (simulated) · scale figure 1.7 m": "基地（模拟）· 比例人形 1.7 米",
   // 2D canvas
   "BASE (sim)": "基地（模拟）",
+  // display-art boundary (3D sandbox)
+  "cut-away block: side faces, strata, depth and lit rim are artistic display — the top edge follows the real DEM cells":
+    "剖切块体：侧壁、岩层纹理、切深与压边光均为美术显示，顶边跟随真实 DEM 网格",
+  "2D plan view draws the published CTX ortho unchanged; the 3D view is a display layer on the same data (see Display art in Sources & assumptions)":
+    "2D 平面视图原样绘制发布的正射影像；3D 是同一份数据上的显示层（见“来源与假设”中的“显示美术”）",
+  "Display art (not data)": "显示美术（非数据）",
+  "The 3D sandbox is a display layer on the published package. Artistic here: the cut-away block sides, their strata pattern and depth, the lit rim, the warm fill light and any future surface colour or near-field micro-detail. None of it feeds route, time, resource or landform-anchor values.":
+    "3D 沙盘是发布数据包之上的显示层。其中剖切块体的侧壁、岩层纹理与切深、压边光、暖色补光，以及后续可能加入的地表调色与近景微观细节，均为美术表达；它们不参与路线、时间、资源或地貌锚点数值。",
+  "The 2D plan view draws the published CTX ortho unchanged and stays the data-truth view; both views use the same DEM grid, the same route kernel and the same numbers.":
+    "2D 平面视图原样绘制发布的正射影像，保持“数据真相视图”；两个视图使用同一 DEM 网格、同一路线内核与同一组数值。",
 };
 
 function fill(s: string, vars?: Record<string, string | number>): string {

@@ -560,13 +560,6 @@ export function LegendDrawer({
           <dt>
             <span
               className="swatch"
-              style={{ width: 12, height: 12, border: "2px solid var(--accent)", borderRadius: "50%", background: "transparent" }}
-            />
-            {t("selection ring: 70 m display marker around the selected site (not a measurement)")}
-          </dt>
-          <dt>
-            <span
-              className="swatch"
               style={{ width: 4, height: 14, background: "#ffd9a0", borderRadius: 2 }}
             />
             {t("mission position marker: light column at the walking position, enlarged for visibility (not to scale)")}
@@ -578,6 +571,13 @@ export function LegendDrawer({
             />
             {t("returnable-range boundary: region reachable within {min} walk-minutes of base (simulated, ±1–2 cells)", { min: returnableThreshold === null ? "—" : String(Math.min(returnableThreshold, 200)) })}
           </dt>
+          <dt>
+            <span
+              className="swatch"
+              style={{ width: 12, height: 14, background: "linear-gradient(to bottom, #8a5539, #3f2419)", borderRadius: 2 }}
+            />
+            {t("cut-away block: side faces, strata, depth and lit rim are artistic display — the top edge follows the real DEM cells")}
+          </dt>
         </dl>
         <h3>{t("Returnable range")}</h3>
         <p className="hint">
@@ -586,6 +586,7 @@ export function LegendDrawer({
         <h3>{t("Reading the terrain")}</h3>
         <p className="hint">{t("controls: left-drag pan · right-drag rotate/pitch · wheel zoom")}</p>
         <p className="hint">{t("grid 20 m/cell · vertical relief ×3 display only")}</p>
+        <p className="hint">{t("2D plan view draws the published CTX ortho unchanged; the 3D view is a display layer on the same data (see Display art in Sources & assumptions)")}</p>
         <p className="hint">{t("units: meters · minutes · simulated 0–100 budget units")}</p>
         <p className="hint">{t("lighting: key-light azimuth matches the DEM hillshade (NW) · warm fill is display only")}</p>
         <p className="hint">
@@ -663,6 +664,13 @@ export function SourcesDrawer({
             ))}
           </tbody>
         </table>
+        <h3>{t("Display art (not data)")}</h3>
+        <p className="hint">
+          {t("The 3D sandbox is a display layer on the published package. Artistic here: the cut-away block sides, their strata pattern and depth, the lit rim, the warm fill light and any future surface colour or near-field micro-detail. None of it feeds route, time, resource or landform-anchor values.")}
+        </p>
+        <p className="hint">
+          {t("The 2D plan view draws the published CTX ortho unchanged and stays the data-truth view; both views use the same DEM grid, the same route kernel and the same numbers.")}
+        </p>
         <h3>{t("Classification")}</h3>
         <p className="hint">
           {t("observed:")} {pkg.sources.classification.observed.join(", ")}

@@ -25,7 +25,8 @@ This is a local application (run with `npm run dev`). There is no live deploymen
 ### 3D terrain sandbox (React Three Fiber)
 
 - Full-viewport terrain stage textured with the CTX ortho mosaic; sun direction matches the DEM shadowing convention (northwest). Routes hug the terrain: outbound warm white, return amber, emergency return amber, invalidated routes gray dashed.
-- Site selection plays a two-stage camera: first focus on the site, then pull back to frame the entire round trip. A skippable opening camera move runs on load; `prefers-reduced-motion` goes straight to stable views.
+- Site selection plays a two-stage camera: first focus on the site, then pull back until the whole round trip fills the frame at a close 45° oblique. Screen-space label placement keeps the selected site and base labels clear of the plan by nudging them (and hides non-selected site labels while a plan is shown); the cut-away block reads in the overview. A skippable opening camera move runs on load; `prefers-reduced-motion` goes straight to stable views.
+- A display-only cut-away block (side faces, synthetic strata, lit rim, base slab) gives the plate physical weight; its top edge follows the real DEM cells and the strata pattern is labelled artistic in the legend and the sources drawer.
 - A 70 m terrain-snapped selection ring, base flag, and astronaut figure provide scale references. The astronaut is true 1.7 m scale, paired with a magnified position light pillar so the location is visible from overview distance — the legend states the pillar is not to scale.
 - Robustness: a frame-stall watchdog falls back to a timer-driven render loop (background tabs keep rendering), plus a WebGL error boundary and a 2D fallback view.
 
@@ -110,6 +111,7 @@ npm run demo           # CLI route-planning demo
 - [docs/SPECIFICATION.md](docs/SPECIFICATION.md) — product and engineering contracts
 - [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) — phased implementation and acceptance records
 - [docs/VISUAL-DIRECTION.md](docs/VISUAL-DIRECTION.md) — visual direction and art/science boundaries
+- [docs/VISUAL-UPGRADE-PLAN.md](docs/VISUAL-UPGRADE-PLAN.md) — demo-video-oriented 3D look upgrade plan (proposal, not implemented)
 
 Not implemented (documented future extensions in `docs/IMPLEMENTATION.md` §8): MEDA weather history, radiation models, multi-target itineraries, route smoothing, and an AI explanation assistant.
 

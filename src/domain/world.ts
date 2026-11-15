@@ -135,10 +135,12 @@ export interface CameraPose {
 /** Overview pose for the whole region: an oblique framing that keeps the whole
  * tile in view but reads as terrain rather than a flat plan. */
 export function overviewPose(t: WorldTransform, heightSpanY: number): CameraPose {
-  const d = 6100;
+  // far enough that the cut-away block lands inside the frame with margin at
+  // 1600x900 (the block adds visible weight below the plate edge)
+  const d = 7200;
   return {
-    target: { x: 0, y: heightSpanY * 0.22, z: 0 },
-    position: { x: -d * 0.16, y: d * 0.66, z: d * 0.86 },
+    target: { x: 0, y: heightSpanY * 0.18, z: 0 },
+    position: { x: -d * 0.16, y: d * 0.62, z: d * 0.88 },
   };
 }
 
@@ -181,6 +183,9 @@ export function routePose(t: WorldTransform, pts: WorldPoint[]): CameraPose {
   // so dist = 3.3·radius leaves ~13% margin. Clamped to the OrbitControls
   // range — a clamp on a route longer than ~5 km radius may crop the edges
   // (the frozen Jezero scenarios stay inside the unclamped range).
+  // NOTE (2026-11-15): an earlier pass pulled this back to a 34° oblique at
+  // 5.6–7.25 km. That made the plate small. The close, large route framing is
+  // the requested behaviour; the cut-away block reads in the overview instead.
   const dist = Math.min(8800, Math.max(2000, 3.3 * radius));
   const dirX = -0.28;
   const dirZ = 0.96; // unit-horizontal, south-east-ish like the overview
