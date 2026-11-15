@@ -73,6 +73,7 @@
 - 任务地点来自 [`public/data/missions.json`](../public/data/missions.json)：Jezero 带 `path` 与 `package: true`，可以加载；Gale、Mawrth、Eberswalde 作为"未来任务地点"画在同一颗星球上（标注 NO PACKAGE，点击只提示）。新增一个地点 = 在清单里加一条 lat/lon + 把数据包放到对应 `path`，球体自动按新包的中心重定向，引脚自动出现。
 - 引脚按真实经纬度计算，背面的自然被球体遮挡；左下角另有完整的任务地点清单，避免背面的点看不到。默认打开时选中当前已加载的 Jezero，镜头正对它。
 - 球体在距地表 9 km → 2.6 km 之间淡出，正好覆盖地形块从画面 1/4 长到满幅的过程；落地后卸载球体并恢复地形 near/far，不选中任何站点，交给用户在地形里选目标。
+- 太空背景（[`src/ui/SpaceBackdrop.tsx`](../src/ui/SpaceBackdrop.tsx)）：跟随相机的程序化天空球——两层星场（含稀有亮星与缓慢闪烁）、低对比银河带、冷色星云和太阳辉光；半径按 near/far 缩放，所以从 8000 km 到落地的整个俯冲过程都成立。纯装饰，不是星表。
 - 开关：Skip / Esc 直接回总览；顶栏「From Mars」重播；`?intro=off` 关闭开场；`?intro=auto` 自动俯冲（录屏）；`prefers-reduced-motion` 直接进入。
 - 边界：球体只是定位语境，经纬度来自清单/数据包，不参与任何计算；2D 视图不出现球体。
 

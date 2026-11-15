@@ -19,6 +19,7 @@ import type { LoadedPackage } from "../domain/load.js";
 import type { MissionLocation } from "../domain/missions.js";
 import { overviewPose, worldTransform } from "../domain/world.js";
 import type { Lang } from "./i18n.js";
+import { SpaceBackdrop } from "./SpaceBackdrop.js";
 
 const GLOBE_TEXTURE = "/data/mars/viking_mdim21_color_2048.jpg";
 /** true Mars radius in metres: the globe and the terrain share one scale */
@@ -207,6 +208,7 @@ export function MarsScene({
 
   return (
     <>
+      <SpaceBackdrop />
       <group
         ref={globeGroup}
         quaternion={spin}
