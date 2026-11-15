@@ -54,7 +54,7 @@ export function contextPresentation(distance: number, phase: "orbit" | "dive" | 
     blur: 0,
   };
   const loaded = 1 - smoothstep(Math.log(90000), Math.log(320000), d);
-  const focus = 1 - smoothstep(Math.log(12000), Math.log(45000), d);
+  const focus = 1 - smoothstep(Math.log(12000), Math.log(20000), d);
   return { opacity: 0.35 + 0.65 * loaded, shade: 1 - 0.84 * focus, blur: 5 * (1 - loaded) };
 }
 

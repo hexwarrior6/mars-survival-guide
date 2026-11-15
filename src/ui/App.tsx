@@ -65,7 +65,7 @@ export function App(): JSX.Element {
   const [marsNotice, setMarsNotice] = useState<string | null>(null);
   const [marsStage, setMarsStage] = useState(1);
   const [diveTelemetry, setDiveTelemetry] = useState<{ progress: number; dist: number } | null>(null);
-  /** task-boundary lock: 0..1; also retires regional context on arrival. */
+  /** left-to-right colour reveal: 0..1; also retires regional context on arrival. */
   const scanReveal = useRef({ value: 1 });
   const scanRaf = useRef(0);
   const [webglFailed, setWebglFailed] = useState(false);
@@ -126,7 +126,7 @@ export function App(): JSX.Element {
       scanReveal.current.value = 1;
       return;
     }
-    // Trace the task boundary once as the surrounding context retires.
+    // Sweep left to right, revealing the warm surface as context retires.
     scanReveal.current.value = 0.001;
     const REVEAL = 2400;
     const t0 = performance.now();

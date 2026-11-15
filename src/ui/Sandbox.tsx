@@ -78,6 +78,7 @@ import { getTerrainLook } from "./terrainLook.js";
 import { createFieldTexture, FIELD_MAX_MINUTES, updateFieldTexture } from "./fieldMask.js";
 import { Dust, PostFXGate, Sky, SUN_DIR } from "./SceneDressing.js";
 import { RegionalPlane } from "./RegionalPlane.js";
+import { REGIONAL_SIZE, REGIONAL_CENTRE_X } from "./regionalGeometry.js";
 import { MarsScene, type MarsPhase } from "./MarsScene.js";
 import type { MissionLocation } from "../domain/missions.js";
 import { Boulders, HelmetCam } from "./HelmetCam.js";
@@ -97,6 +98,7 @@ function TerrainMesh({
   fieldOn,
   fieldThreshold,
   scanReveal,
+  marsPhase,
 }: {
   pkg: LoadedPackage;
   t: WorldTransform;
@@ -106,12 +108,16 @@ function TerrainMesh({
   fieldOn: { value: number };
   /** reachable walk-minutes available right now, in field units */
   fieldThreshold: { value: number };
-  /** 0..1 task-boundary lock progress; 1 is the stable mission view. */
+  /** 0..1 left-to-right colour reveal progress; 1 is the stable mission view. */
   scanReveal: { value: number };
+  marsPhase: MarsPhase;
 }): JSX.Element {
   const terrain = pkg.terrain;
   const ortho = useTexture("/data/jezero/imagery/ortho_5m.jpg");
   ortho.anisotropy = 8;
+  const regionalPhoto = useTexture("/data/mars/jezero_region_60km.jpg");
+  regionalPhoto.colorSpace = THREE.SRGBColorSpace;
+  regionalPhoto.anisotropy = 8;
   // dev switch: ?raw renders the untouched ortho, to compare against the bake
   const rawOnly = new URLSearchParams(location.search).has("raw");
   const look = rawOnly ? null : getTerrainLook(pkg);
@@ -151,9 +157,29 @@ function TerrainMesh({
   }, [terrain, t]);
 
 
+  const camera = useThree(s => s.camera);
+  const surfaceReveal = useRef({ value: 0 }).current;
+  const scanDirection = useRef({ value: new THREE.Vector2(1, 0) }).current;
+  const screenRight = useRef(new THREE.Vector3());
+  useFrame(() => {
+    // Keep the approach grey so arrival cannot jump from warm back to grey.
+    surfaceReveal.value = marsPhase === "off" ? scanReveal.value : 0;
+    screenRight.current.set(1, 0, 0).applyQuaternion(camera.quaternion);
+    scanDirection.value.set(screenRight.current.x, screenRight.current.z).normalize();
+  });
+
   const material = useMemo(() => {
     /** shared display injection: returnable-range tint + (baked path only) grain */
     const inject = (shader: THREE.WebGLProgramParametersWithUniforms, withGrain: boolean): void => {
+      shader.uniforms.uApproachPhoto = { value: regionalPhoto };
+      shader.uniforms.uApproachUv = { value: new THREE.Vector4(
+        t.halfWidthM * 2 / REGIONAL_SIZE, t.halfHeightM * 2 / REGIONAL_SIZE,
+        0.5 - (t.halfWidthM + REGIONAL_CENTRE_X) / REGIONAL_SIZE,
+        0.5 - t.halfHeightM / REGIONAL_SIZE,
+      ) };
+      shader.uniforms.uScanReveal = surfaceReveal;
+      shader.uniforms.uScanDirection = scanDirection;
+      shader.uniforms.uScanHalf = { value: new THREE.Vector2((terrain.width - 1) * terrain.cellSizeM / 2, (terrain.height - 1) * terrain.cellSizeM / 2) };
       shader.uniforms.uFieldMask = { value: fieldMask };
       shader.uniforms.uFieldOn = fieldOn;
       shader.uniforms.uFieldThreshold = fieldThreshold;
@@ -162,6 +188,18 @@ function TerrainMesh({
         .replace(
           "#include <common>",
           `#include <common>
+          varying vec3 vWPos;
+          uniform float uScanReveal;
+          uniform vec2 uScanHalf;
+          uniform vec2 uScanDirection;
+          uniform sampler2D uApproachPhoto;
+          uniform vec4 uApproachUv;
+          float taskColourMask(vec2 point) {
+            float extent = dot(abs(uScanDirection), uScanHalf);
+            float front = mix(-extent - 180.0, extent + 180.0, uScanReveal);
+            return uScanReveal >= 0.999 ? 1.0 : (uScanReveal <= 0.001 ? 0.0
+              : 1.0 - smoothstep(front - 65.0, front + 65.0, dot(point, uScanDirection)));
+          }
           uniform sampler2D uFieldMask;
           uniform float uFieldOn;
           uniform float uFieldThreshold;
@@ -171,7 +209,15 @@ function TerrainMesh({
         .replace(
           "#include <map_fragment>",
           `#include <map_fragment>
-          if (uFieldOn > 0.5) {
+          // During descent sample the same regional photograph at the same
+          // projected coordinates as the surround, not the separately baked
+          // mission texture. The light band reveals that final texture later.
+          vec2 approachUv = vMapUv * uApproachUv.xy + uApproachUv.zw;
+          vec3 approachPhoto = texture2D(uApproachPhoto, approachUv).rgb;
+          float approachLuma = dot(approachPhoto, vec3(0.2126, 0.7152, 0.0722));
+          approachPhoto = mix(approachPhoto, approachLuma * vec3(1.035, 1.0, 0.98), 0.6);
+          diffuseColor.rgb = mix(approachPhoto, diffuseColor.rgb, taskColourMask(vWPos.xz));
+          if (uFieldOn > 0.5 && uScanReveal >= 0.999) {
             // walk-minutes at this fragment, read from the smoothed field atlas:
             // the tint and the contour both come from this one fetch, so nothing
             // is drawn as geometry that could z-fight with the terrain
@@ -183,6 +229,31 @@ function TerrainMesh({
             diffuseColor.rgb = mix(diffuseColor.rgb, FIELD_COLOR * 1.2, contour * 0.45);
           }${withGrain ? "" : ""}`,
         );
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <normal_fragment_maps>", `
+          #include <normal_fragment_maps>
+          normal = normalize(mix(nonPerturbedNormal, normal, taskColourMask(vWPos.xz)));
+        `)
+        .replace("#include <fog_fragment>", `
+          // The regional surround has no distance fog. Match it until the
+          // scanner reveals the final mission material, including its haze.
+          vec3 beforeTaskFog = gl_FragColor.rgb;
+          #include <fog_fragment>
+          gl_FragColor.rgb = mix(beforeTaskFog, gl_FragColor.rgb, taskColourMask(vWPos.xz));
+        `);
+      shader.fragmentShader = shader.fragmentShader.replace("#include <dithering_fragment>", `
+        // Apply neutrality after lighting, fog and tone mapping. Desaturating
+        // only the albedo still allowed the warm scene fog to paint it brown.
+        float revealExtent = dot(abs(uScanDirection), uScanHalf);
+        float revealCoordinate = dot(vWPos.xz, uScanDirection);
+        float revealFront = mix(-revealExtent - 180.0, revealExtent + 180.0, uScanReveal);
+        float revealColour = uScanReveal >= 0.999 ? 1.0
+          : (uScanReveal <= 0.001 ? 0.0
+          : 1.0 - smoothstep(revealFront - 65.0, revealFront + 65.0, revealCoordinate));
+        float revealGrey = dot(gl_FragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+        gl_FragColor.rgb = mix(vec3(revealGrey), gl_FragColor.rgb, revealColour);
+        #include <dithering_fragment>
+      `);
     };
 
     if (look === null) {
@@ -220,8 +291,6 @@ function TerrainMesh({
     // artistic detail, no invented landforms, disabled on the raw-ortho path.
     material.customProgramCacheKey = () => "sandbox-terrain-grain";
     material.onBeforeCompile = (shader) => {
-      shader.uniforms.uScanReveal = scanReveal;
-      shader.uniforms.uScanHalf = { value: new THREE.Vector2((terrain.width - 1) * terrain.cellSizeM / 2, (terrain.height - 1) * terrain.cellSizeM / 2) };
       shader.vertexShader = shader.vertexShader
         .replace(
           "#include <common>",
@@ -236,9 +305,6 @@ function TerrainMesh({
         .replace(
           "#include <common>",
           `#include <common>
-          varying vec3 vWPos;
-          uniform float uScanReveal;
-          uniform vec2 uScanHalf;
           float h21(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
           float n2(vec2 p){
             vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -255,23 +321,31 @@ function TerrainMesh({
           float detail = mix(dA, dB, 0.5);
           diffuseColor.rgb *= 0.93 + 0.14 * detail;
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.03, 0.99, 0.95), detail * 0.35);
+          // Sweep in screen-left to screen-right order, independent of the
+          // final overview azimuth. The existing photograph supplies both looks.
+          float extent = dot(abs(uScanDirection), uScanHalf);
+          float coordinate = dot(vWPos.xz, uScanDirection);
+          float front = mix(-extent - 180.0, extent + 180.0, uScanReveal);
+          float coloured = uScanReveal >= 0.999 ? 1.0
+            : 1.0 - smoothstep(front - 65.0, front + 65.0, coordinate);
+          vec3 warmSurface = diffuseColor.rgb;
+          float luma = dot(warmSurface, vec3(0.2126, 0.7152, 0.0722));
+          vec3 greySurface = vec3(luma) * vec3(1.02, 1.0, 0.98);
+          diffuseColor.rgb = mix(greySurface, warmSurface, coloured);
           if (uScanReveal > 0.001 && uScanReveal < 0.999) {
-            // Lock the data footprint: an amber head travels the perimeter
-            // once while regional context dims, without washing over the photo.
-            vec2 toEdge = uScanHalf - abs(vWPos.xz);
-            float rim = 1.0 - smoothstep(6.0, 38.0, min(toEdge.x, toEdge.y));
-            float angle = atan(vWPos.z / uScanHalf.y, vWPos.x / uScanHalf.x) / 6.2831853 + 0.5;
-            float separation = abs(angle - uScanReveal);
-            separation = min(separation, 1.0 - separation);
-            float head = exp(-separation * separation / 0.002);
-            float envelope = sin(uScanReveal * 3.14159265);
-            diffuseColor.rgb += vec3(1.0, 0.64, 0.28) * rim * envelope * (0.18 + 0.85 * head);
+            float distanceToFront = abs(coordinate - front);
+            float beam = 1.0 - smoothstep(15.0, 95.0, distanceToFront);
+            float core = 1.0 - smoothstep(0.0, 22.0, distanceToFront);
+            float halo = 1.0 - smoothstep(0.0, 230.0, distanceToFront);
+            diffuseColor.rgb += vec3(1.0, 0.62, 0.26) * (beam * 0.85 + halo * 0.10);
+            diffuseColor.rgb += vec3(1.0, 0.88, 0.66) * core * 0.65;
           }
+
 `,
         );
     };
     return material;
-  }, [look, ortho, fieldMask, fieldOn, fieldThreshold, scanReveal, terrain]);
+  }, [look, ortho, fieldMask, fieldOn, fieldThreshold, scanReveal, terrain, surfaceReveal, scanDirection, regionalPhoto, t]);
 
   useEffect(() => () => material.dispose(), [material]);
 
@@ -937,6 +1011,7 @@ export function Sandbox({
           fieldOn={fieldOn}
           fieldThreshold={fieldThreshold}
           scanReveal={scanReveal}
+          marsPhase={marsPhase}
         />
         </group>
       </Suspense>

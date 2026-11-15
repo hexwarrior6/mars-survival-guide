@@ -55,6 +55,16 @@ describe("Mars geographical zoom continuity", () => {
 });
 
 describe("approach context presentation", () => {
+  it("keeps the regional overview bright and delays isolation until the last approach", () => {
+    for (const distance of [77700, 60000, 28000, 20000]) {
+      expect(contextPresentation(distance, "dive", 1).shade).toBe(1);
+    }
+    const nearTask = contextPresentation(16000, "dive", 1);
+    expect(nearTask.shade).toBeLessThan(1);
+    expect(nearTask.shade).toBeGreaterThan(0.16);
+    expect(contextPresentation(12000, "dive", 1).shade).toBeCloseTo(0.16);
+  });
+
   it("resolves detail gradually without hiding the region during the descent", () => {
     let previousBlur = Infinity;
     let previousOpacity = 0;
