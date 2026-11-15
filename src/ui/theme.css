@@ -697,3 +697,136 @@ table.results-table { width: 100%; border-collapse: collapse; font-size: 11.5px;
   12% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* ---------- opening Mars stage (planet -> Jezero dive) ---------- */
+.mars-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  background: #050403;
+  opacity: 1;
+  transition: opacity 620ms ease;
+}
+.mars-stage.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+.mars-stage canvas { display: block; }
+
+.mars-brand {
+  position: absolute;
+  left: 26px;
+  top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: none;
+}
+.mars-brand b {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+}
+.mars-brand span {
+  font-size: 10.5px;
+  color: var(--muted);
+  letter-spacing: 0.16em;
+}
+
+.mars-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 42px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 10px 8px 16px;
+  background: rgba(20, 14, 10, 0.72);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--muted-strong);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+
+.mars-credit {
+  position: absolute;
+  right: 22px;
+  bottom: 46px;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: rgba(162, 145, 127, 0.75);
+  pointer-events: none;
+}
+
+.mars-pin {
+  position: relative;
+  transform: translateY(-14px);
+  background: rgba(16, 11, 8, 0.84);
+  border: 1px solid rgba(255, 180, 94, 0.5);
+  color: var(--warm-white);
+  border-radius: 7px;
+  padding: 5px 9px 6px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.mars-pin b {
+  display: block;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+.mars-pin span {
+  display: block;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+.mars-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 14px;
+  background: linear-gradient(rgba(255, 180, 94, 0.7), rgba(255, 180, 94, 0));
+}
+
+@media (max-width: 720px) {
+  .mars-credit { display: none; }
+  .mars-hint {
+    left: 14px;
+    right: 14px;
+    transform: none;
+    justify-content: space-between;
+    white-space: normal;
+  }
+}
+.mars-pin {
+  transition: opacity 220ms ease;
+}
+.mars-pin.is-diving {
+  opacity: 0;
+  pointer-events: none;
+}
+.mars-brand,
+.mars-hint,
+.mars-credit {
+  transition: opacity 300ms ease;
+}
+.mars-stage.is-leaving .mars-brand,
+.mars-stage.is-leaving .mars-hint,
+.mars-stage.is-leaving .mars-credit {
+  opacity: 0;
+}

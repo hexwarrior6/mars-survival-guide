@@ -36,6 +36,7 @@ const ZH: Record<string, string> = {
   "3D sandbox": "3D 沙盘",
   "2D plan (cross-check)": "2D 平面（核对）",
   "Reset view": "复位视角",
+  "From Mars": "从火星看",
   // load / failure states
   "Loading frozen Jezero data package…": "正在加载冻结的耶泽罗数据包…",
   "Preparing the terrain surface… {pct}%": "正在生成地表显示层… {pct}%",

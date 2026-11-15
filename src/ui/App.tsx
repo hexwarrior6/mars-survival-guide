@@ -14,6 +14,7 @@ import { PARAMS_VERSION } from "../domain/assumptions.js";
 import type { LoadedPackage } from "../domain/load.js";
 import type { RouteRequest, RouteResult, Strategy } from "../domain/types.js";
 import { Sandbox, flyToSite, makeFpsStore, type FpsStore, type LoopMode } from "./Sandbox.js";
+import { MarsIntro } from "./MarsIntro.js";
 import { PlanView2D } from "./PlanView2D.js";
 import { WebglErrorBoundary } from "./WebglErrorBoundary.js";
 import { LegendDrawer, MissionPanel, ResultsPanel, SourcesDrawer, type LockedPlan } from "./panels.js";
@@ -22,8 +23,8 @@ import { buildMissionTimeline } from "../simulation/engine.js";
 import { makeRuntime, stepMissionRuntime, applyScrub, type HudMirror, type MissionRuntime } from "../simulation/runtime.js";
 import { costFieldToBase, type CostField } from "../routing/field.js";
 import { buildSearchGraph, edgeCostModel } from "../routing/graph.js";
-import { routePolyline } from "../domain/world.js";
-import { worldTransform } from "../domain/world.js";
+import { overviewPose, routePolyline, worldTransform } from "../domain/world.js";
+import { commandCamera } from "./cameraBus.js";
 import { PRESETS } from "../simulation/presets.js";
 import { LangContext, makeT, applyLangToUrl, langFromHash, type Lang } from "./i18n.js";
 import { HelmetHud } from "./HelmetHud.js";
@@ -49,6 +50,11 @@ export function App(): JSX.Element {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  /** opening Mars stage: skipped on reduced-motion or with ?intro=off */
+  const [marsOpen, setMarsOpen] = useState(() => {
+    if (new URLSearchParams(window.location.search).get("intro") === "off") return false;
+    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  });
   const [webglFailed, setWebglFailed] = useState(false);
   const [loopMode, setLoopMode] = useState<LoopMode>("raf");
   const [helmet, setHelmet] = useState(false);
@@ -645,6 +651,9 @@ export function App(): JSX.Element {
           >
             {t("Reset view")}
           </button>
+          <button type="button" className="small" onClick={() => setMarsOpen(true)}>
+            {t("From Mars")}
+          </button>
           <button
             type="button"
             className="small"
@@ -800,6 +809,39 @@ export function App(): JSX.Element {
           returnableThreshold={returnable === null ? null : returnable.threshold}
         />
         <SourcesDrawer pkg={pkg} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
+        {marsOpen && (
+          <WebglErrorBoundary onFallback={() => setMarsOpen(false)}>
+            <MarsIntro
+              north={pkg.region.boundsLatLon.north}
+              south={pkg.region.boundsLatLon.south}
+              east={pkg.region.boundsLatLon.east}
+              west={pkg.region.boundsLatLon.west}
+              lang={lang}
+              reducedMotion={reducedMotion}
+              onPrepare={() => {
+                // park the terrain camera under the still-opaque overlay so the
+                // dissolve reveals the close view the globe dive was heading for
+                commandCamera(
+                  { position: { x: 0, y: 4200, z: 2100 }, target: { x: 0, y: 150, z: 0 } },
+                  true,
+                );
+              }}
+              onEnter={() => {
+                const wt = worldTransform(pkg.terrain);
+                setMarsOpen(false);
+                if (reducedMotion) {
+                  commandCamera(overviewPose(wt, 400), true);
+                } else {
+                  window.setTimeout(
+                    () => commandCamera(overviewPose(wt, 400), false, 3200),
+                    500,
+                  );
+                }
+              }}
+            />
+          </WebglErrorBoundary>
+        )}
       </div>
     </LangContext.Provider>
   );
