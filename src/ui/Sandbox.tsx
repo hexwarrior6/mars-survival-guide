@@ -191,7 +191,7 @@ function TerrainMesh({
     const material = new THREE.MeshStandardMaterial({
       map: look.albedo,
       normalMap: look.normalMap,
-      normalScale: new THREE.Vector2(1, 1),
+      normalScale: new THREE.Vector2(0.6, 0.6),
       roughness: 1,
       metalness: 0,
       dithering: true,
@@ -227,8 +227,8 @@ function TerrainMesh({
           float dA = grain(vWPos.xz * 0.3);
           float dB = grain(vWPos.xz * 1.7 + 19.0);
           float detail = mix(dA, dB, 0.5);
-          diffuseColor.rgb *= 0.82 + 0.34 * detail;
-          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.06, 0.96, 0.88), detail * 0.5);`,
+          diffuseColor.rgb *= 0.93 + 0.14 * detail;
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.03, 0.99, 0.95), detail * 0.35);`,
         );
     };
     return material;
@@ -822,27 +822,29 @@ export function Sandbox({
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={(state) => {
-        // display grade: ACES + a slightly hot exposure. The baked albedo
-        // already carries the sun shadows, so the key light is lower than the
-        // pre-bake 2.8 to avoid crushing the lit faces.
+        // display grade: ACES at a neutral exposure. The albedo is the CTX
+        // image itself, so the grade must not add saturation or blow it out.
         state.gl.toneMapping = THREE.ACESFilmicToneMapping;
-        state.gl.toneMappingExposure = 1.15;
+        state.gl.toneMappingExposure = 1.12;
       }}
     >
       <color attach="background" args={["#070504"]} />
-      {/* aerial perspective: a warm, light haze (a dark fog just mutes the tile) */}
-      <fogExp2 attach="fog" args={["#5a2c17", 0.00004]} />
+      {/* aerial perspective: a thin, dusty haze — heavy enough to set the plate
+          in the distance, light enough to leave the ortho's contrast alone */}
+      <fogExp2 attach="fog" args={["#3f2c22", 0.000025]} />
       <Sky />
-      <hemisphereLight args={["#8a5230", "#241208", 0.55]} />
-      <ambientLight intensity={0.12} color="#ffd9b8" />
-      {/* key light: NW, low — same azimuth as the baked DEM shadows */}
+      <hemisphereLight args={["#a8a099", "#2a2724", 1.50]} />
+      <ambientLight intensity={0.42} color="#f4f0ea" />
+      {/* key light: NW, low — same azimuth as the baked DEM shadows. Kept well
+          below the pre-bake 2.8: the ortho already contains real sun shading,
+          so a strong key would double it into a painted look. */}
       <directionalLight
         position={[SUN_DIR.x * 10000, SUN_DIR.y * 10000, SUN_DIR.z * 10000]}
-        intensity={2.8}
-        color="#ffd6ad"
+        intensity={0.45}
+        color="#fff5ea"
       />
       {/* warm display-only fill from the opposite quarter to lift the cut faces */}
-      <directionalLight position={[5200, 1500, 5600]} intensity={0.85} color="#ff9d63" />
+      <directionalLight position={[5200, 1500, 5600]} intensity={0.20} color="#ffcfb2" />
       <Suspense fallback={null}>
         <TerrainMesh
           pkg={pkg}

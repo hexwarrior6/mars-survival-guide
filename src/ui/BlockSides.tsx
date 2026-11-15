@@ -31,12 +31,12 @@ function makeStrataTexture(): THREE.CanvasTexture {
   canvas.height = 1024;
   const ctx = canvas.getContext("2d");
   const bands: Array<[string, string]> = [
-    ["#241310", "#2e1a15"],
-    ["#3f2419", "#4b2c1f"],
-    ["#65392a", "#744534"],
-    ["#8a5539", "#9a6143"],
-    ["#a87350", "#b78259"],
-    ["#331d17", "#3d241d"],
+    ["#211a16", "#2a211b"],
+    ["#352a22", "#40332a"],
+    ["#4f3e32", "#5b483a"],
+    ["#6c5545", "#78604e"],
+    ["#8b725d", "#977e68"],
+    ["#2d241e", "#362c25"],
   ];
   if (ctx !== null) {
     let seed = 20261115;

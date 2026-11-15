@@ -170,9 +170,9 @@ export function PostFX(): JSX.Element | null {
       c.addPass(
         new UnrealBloomPass(
           new THREE.Vector2(size.width, size.height),
-          0.34, // strength
-          0.6, // radius
-          0.9, // threshold: only the route, beacons and the sun bloom
+          0.22, // strength
+          0.55, // radius
+          0.95, // threshold: only the route, beacons and the sun bloom
         ),
       );
       c.addPass(new OutputPass());

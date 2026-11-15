@@ -1,22 +1,23 @@
 /**
  * Baked display surface for the 3D sandbox.
  *
- * The published package ships a 1024² SINGLE-BAND ortho image: as an albedo it
- * gives the plate exactly one brown, and the DEM has no shading of its own
- * beyond the mesh normals. This module derives two textures once per package
- * and keeps every computed number untouched:
+ * The published package ships a 1024² SINGLE-BAND ortho image: a nadir CTX
+ * radiance product that already carries the delta's channel scars, dust fans,
+ * crater rims and its own sunlight shading. This module derives two textures
+ * once per package and keeps every computed number untouched:
  *
- *  - albedo: the real ortho luminance (channel scars, dust fans) × a slope /
- *    curvature palette × long shadows baked from a horizon scan of the DEM at
- *    the app's own sun azimuth. Baking the shadows costs nothing at runtime and
- *    gives real, terrain-shaped shadows instead of a shadow map.
+ *  - albedo: the ortho luminance IS the surface. The grey is contrast-stretched
+ *    and tinted through a restrained Mars ramp keyed on brightness, so the 3D
+ *    plate reads as the same photograph it was built from — not as a palette
+ *    painted on top of it. Slope/curvature and a faint DEM horizon-scan shadow
+ *    only modulate that image by a few percent; they never replace it.
  *  - normalMap: the DEM plus a little multi-octave micro relief, so ridges and
  *    crater rims still read when the camera comes close.
  *
- * ARTISTIC, LABELLED: the palette, the micro relief, the haze and the tone
- * mapping are a display treatment, not measured colour or geology. The legend
- * and the sources drawer say so, and the 2D plan view keeps the raw ortho.
- * Nothing here is read back by routing, timing or resource logic.
+ * ARTISTIC, LABELLED: the tint, the micro relief, the haze and the tone mapping
+ * are a display treatment, not measured colour or geology. The legend and the
+ * sources drawer say so, and the 2D plan view keeps the raw ortho. Nothing here
+ * is read back by routing, timing or resource logic.
  */
 
 import * as THREE from "three";
@@ -280,11 +281,36 @@ export async function bakeTerrainLook(
   const img = actx.createImageData(S, S);
   const px = img.data;
 
-  // dusty regolith, darker rock on steep faces, pale crests, dark valley floors
-  const dust = [0.80, 0.47, 0.31];
-  const rock = [0.55, 0.30, 0.21];
-  const crest = [0.86, 0.66, 0.49];
-  const valley = [0.42, 0.22, 0.16];
+  // Colour ramp keyed on the image's own brightness: a near-neutral warm grey
+  // (dark basalt -> warm dust -> pale crest), not a lithology map. The hue is
+  // kept close to the source grey so the photograph, not the palette, is what
+  // the eye reads.
+  const RAMP: Array<[number, [number, number, number]]> = [
+    [0.0, [0.115, 0.104, 0.098]],
+    [0.34, [0.335, 0.305, 0.285]],
+    [0.68, [0.56, 0.515, 0.48]],
+    [1.0, [0.82, 0.77, 0.72]],
+  ];
+  const rampAt = (t: number): [number, number, number] => {
+    for (let k = 1; k < RAMP.length; k++) {
+      const prev = RAMP[k - 1] as [number, [number, number, number]];
+      const next = RAMP[k] as [number, [number, number, number]];
+      if (t <= next[0]) {
+        const f = smoothstep(prev[0], next[0], t);
+        return [
+          lerp(prev[1][0], next[1][0], f),
+          lerp(prev[1][1], next[1][1], f),
+          lerp(prev[1][2], next[1][2], f),
+        ];
+      }
+    }
+    return RAMP[RAMP.length - 1]![1];
+  };
+  // The CTX extract is dark and low-contrast (mean ≈ 0.23, p95 ≈ 0.38); a
+  // linear stretch of that narrow band is what makes it read as a photograph
+  // instead of a brown wash.
+  const LUMA_LO = 0.03;
+  const LUMA_HI = 0.46;
 
   for (let j = 0; j < S; j++) {
     const yM = H - ((j + 0.5) * H) / S;
@@ -295,28 +321,29 @@ export async function bakeTerrainLook(
       const sh = gridBilinear(g, shadow, xM, yM);
       const raw = luma[j * S + i] as number;
       const detail = raw - (lumaBlur[j * S + i] as number);
-      const lum = clamp01(raw + 0.55 * detail);
+      // image first: boost local contrast, then stretch the grey range
+      const lum = clamp01(raw + 0.35 * detail);
+      const tone = Math.pow(clamp01((lum - LUMA_LO) / (LUMA_HI - LUMA_LO)), 0.92);
 
-      const rockF = smoothstep(4, 27, slope);
-      const crestF = smoothstep(0.02, 0.34, curv);
-      const valleyF = smoothstep(0.02, 0.36, -curv);
+      let [r, gg, b] = rampAt(tone);
 
-      let r = lerp(dust[0] as number, rock[0] as number, rockF);
-      let gg = lerp(dust[1] as number, rock[1] as number, rockF);
-      let b = lerp(dust[2] as number, rock[2] as number, rockF);
-      r = lerp(r, crest[0] as number, crestF * 0.5);
-      gg = lerp(gg, crest[1] as number, crestF * 0.5);
-      b = lerp(b, crest[2] as number, crestF * 0.5);
-      r = lerp(r, valley[0] as number, valleyF * 0.5);
-      gg = lerp(gg, valley[1] as number, valleyF * 0.5);
-      b = lerp(b, valley[2] as number, valleyF * 0.5);
+      // geology hints only — a few percent, so the image stays in charge
+      const rockF = smoothstep(8, 30, slope) * 0.10;
+      const crestF = smoothstep(0.04, 0.4, curv) * 0.07;
+      const valleyF = smoothstep(0.04, 0.4, -curv) * 0.06;
+      r = r * (1 - rockF) + 0.20 * rockF;
+      gg = gg * (1 - rockF) + 0.16 * rockF;
+      b = b * (1 - rockF) + 0.14 * rockF;
+      r = r * (1 + crestF) - valleyF * 0.05;
+      gg = gg * (1 + crestF) - valleyF * 0.04;
+      b = b * (1 + crestF) - valleyF * 0.03;
 
-      const L = 0.56 + 0.95 * Math.pow(lum, 0.8);
-      const grain = 0.97 + 0.06 * fbm(xM * 0.09, yM * 0.09, 2);
-      const macro =
-        1 + 0.07 * fbm(xM * 0.0011, yM * 0.0011, 3) + 0.05 * fbm(xM * 0.006, yM * 0.006, 2);
-      const shade = 1 - 0.26 * sh;
-      const k = L * grain * macro * shade;
+      // the ortho already carries real sunlight shading; our own horizon scan
+      // is only a faint depth cue, never a second sun
+      const shade = 1 - 0.10 * sh;
+      const grain = 0.985 + 0.03 * fbm(xM * 0.09, yM * 0.09, 2);
+      const macro = 1 + 0.025 * fbm(xM * 0.0011, yM * 0.0011, 3);
+      const k = grain * macro * shade;
 
       const o = (j * S + i) * 4;
       px[o] = clamp01(r * k) * 255;
@@ -337,7 +364,9 @@ export async function bakeTerrainLook(
     for (let i = 0; i < N; i++) {
       const xM = ((i + 0.5) * W) / N;
       const elev = sampleElevationM(terrain, xM, yM, 0);
-      const micro = fbm(xM * 0.012, yM * 0.012, 3) * 1.1 + fbm(xM * 0.06, yM * 0.06, 2) * 0.45;
+      // light micro relief: enough to keep a close camera from reading a flat
+      // texture, small enough not to compete with the ortho's own relief
+      const micro = fbm(xM * 0.012, yM * 0.012, 3) * 0.5 + fbm(xM * 0.06, yM * 0.06, 2) * 0.18;
       bump[j * N + i] = elev + micro;
     }
     if ((j & 127) === 127) await nextFrame();
