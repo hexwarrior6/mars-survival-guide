@@ -114,6 +114,7 @@ export function MarsScene({
   texture.anisotropy = 8;
   const normalMap = useTexture("/data/mars/mars_normal_1024.png");
   normalMap.colorSpace = THREE.NoColorSpace;
+  normalMap.anisotropy = 8;
   // stable uniforms: a fresh object each render would reset the fade
   const hazeUniforms = useMemo(() => ({ uOpacity: { value: 1 } }), []);
   const globeUniforms = useMemo(
@@ -289,7 +290,10 @@ export function MarsScene({
   useFrame((_, delta) => {
     if (phase === "orbit") {
       const z = zoom.current;
-      z.current += (z.target - z.current) * (1 - Math.exp(-delta * 9));
+      // clamp the frame delta: a React re-render hitch must not become a zoom
+      // jump (the old 250 ms HUD tick caused exactly that)
+      const dt = Math.min(delta, 1 / 30);
+      z.current += (z.target - z.current) * (1 - Math.exp(-dt * 9));
       camera.position.copy(orbitDir.current).multiplyScalar(z.current).add(MARS_CENTRE);
       camera.lookAt(MARS_CENTRE);
       setClip(camera, z.current);
@@ -398,6 +402,10 @@ export function MarsScene({
                   vec3 B = normalize(cross(N, T));
                   vec3 nm = texture2D(uNormal, vUv).rgb * 2.0 - 1.0;
                   vec3 Nw = normalize(T * nm.x + B * nm.y + N * nm.z);
+                  // the tangent frame degenerates at the poles; fade the bump
+                  // there so the seam cannot shimmer
+                  float pole = smoothstep(0.02, 0.14, 1.0 - abs(N.y));
+                  Nw = normalize(mix(N, Nw, pole));
 
                   vec3 V = normalize(cameraPosition - vP);
                   float ndl = dot(Nw, normalize(uSun));
