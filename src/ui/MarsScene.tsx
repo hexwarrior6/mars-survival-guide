@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { JSX } from "react";
-import { Html, OrbitControls, useTexture } from "@react-three/drei";
+import { Html, useTexture } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { LoadedPackage } from "../domain/load.js";
@@ -46,6 +46,7 @@ const smoothstep = (e0: number, e1: number, x: number): number => {
   return t * t * (3 - 2 * t);
 };
 const UP = new THREE.Vector3(0, 1, 0);
+const IDENTITY = new THREE.Quaternion();
 
 /** 0..1 staged progress: each segment eases, then holds before the next push */
 function stagedProgress(elapsed: number): number {
@@ -106,6 +107,7 @@ export function MarsScene({
   onDiveDone: () => void;
 }): JSX.Element {
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
+  const gl = useThree((state) => state.gl);
   const texture = useTexture(GLOBE_TEXTURE);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
@@ -129,6 +131,9 @@ export function MarsScene({
   const globeGroup = useRef<THREE.Group | null>(null);
   const globeMesh = useRef<THREE.Mesh>(null!);
   const opacity = useRef(1);
+  const dragQ = useRef(new THREE.Quaternion());
+  const zoom = useRef({ current: MARS_ORBIT_DIST, target: MARS_ORBIT_DIST });
+  const orbitDir = useRef(new THREE.Vector3(0, 1, 0));
   const stageRef = useRef(-1);
   const dive = useRef<{
     elapsed: number;
@@ -150,6 +155,77 @@ export function MarsScene({
     [missions],
   );
 
+  // ---- trackball: drag the globe itself, in any direction -----------------
+  useEffect(() => {
+    if (phase !== "orbit") return;
+    const el = gl.domElement;
+    el.style.cursor = "grab";
+    let active = false;
+    const v0 = new THREE.Vector3(0, 0, 1);
+    const v1 = new THREE.Vector3();
+    const axis = new THREE.Vector3();
+
+    const ball = (e: PointerEvent): THREE.Vector3 => {
+      const rect = el.getBoundingClientRect();
+      const d = camera.position.distanceTo(MARS_CENTRE);
+      const f = rect.height / 2 / Math.tan((camera.fov * Math.PI) / 360);
+      const pr = Math.max(1, (f * MARS_RADIUS) / Math.sqrt(Math.max(d * d - MARS_RADIUS * MARS_RADIUS, 1)));
+      let x = (e.clientX - (rect.left + rect.width / 2)) / pr;
+      let y = (e.clientY - (rect.top + rect.height / 2)) / pr;
+      const len = Math.hypot(x, y);
+      if (len > 1) {
+        x /= len;
+        y /= len;
+      }
+      return new THREE.Vector3(x, -y, Math.sqrt(Math.max(1 - x * x - y * y, 0))).normalize();
+    };
+
+    const down = (e: PointerEvent): void => {
+      if (e.button !== 0) return;
+      active = true;
+      v0.copy(ball(e));
+      el.style.cursor = "grabbing";
+      el.setPointerCapture(e.pointerId);
+    };
+    const move = (e: PointerEvent): void => {
+      if (!active) return;
+      v1.copy(ball(e));
+      const dot = Math.min(Math.max(v0.dot(v1), -1), 1);
+      const angle = Math.acos(dot);
+      if (angle > 1e-4) {
+        axis.crossVectors(v0, v1).normalize().applyQuaternion(camera.quaternion);
+        const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+        dragQ.current.premultiply(q);
+      }
+      v0.copy(v1);
+    };
+    const up = (e: PointerEvent): void => {
+      if (!active) return;
+      active = false;
+      el.style.cursor = "grab";
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    };
+    const wheel = (e: WheelEvent): void => {
+      e.preventDefault();
+      const k = Math.exp(e.deltaY * 0.0012);
+      zoom.current.target = Math.min(
+        Math.max(zoom.current.target * k, MARS_RADIUS * 1.35),
+        MARS_RADIUS * 4.2,
+      );
+    };
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("wheel", wheel, { passive: false });
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("wheel", wheel);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      el.style.cursor = "";
+    };
+  }, [phase, gl, camera]);
+
   // ---- camera: orbit pose -------------------------------------------------
   useEffect(() => {
     if (phase !== "orbit") return;
@@ -158,6 +234,16 @@ export function MarsScene({
       MARS_CENTRE.y + Math.cos(ORBIT_POLAR) * MARS_ORBIT_DIST,
       Math.sin(ORBIT_POLAR) * Math.cos(ORBIT_AZIMUTH) * MARS_ORBIT_DIST,
     );
+    orbitDir.current
+      .set(
+        Math.sin(ORBIT_POLAR) * Math.sin(ORBIT_AZIMUTH),
+        Math.cos(ORBIT_POLAR),
+        Math.sin(ORBIT_POLAR) * Math.cos(ORBIT_AZIMUTH),
+      )
+      .normalize();
+    zoom.current.current = MARS_ORBIT_DIST;
+    zoom.current.target = MARS_ORBIT_DIST;
+    dragQ.current.identity();
     camera.up.set(0, 1, 0);
     camera.lookAt(MARS_CENTRE);
     setClip(camera, MARS_ORBIT_DIST);
@@ -188,12 +274,19 @@ export function MarsScene({
 
   useFrame((_, delta) => {
     if (phase === "orbit") {
-      setClip(camera, camera.position.distanceTo(MARS_CENTRE));
+      const z = zoom.current;
+      z.current += (z.target - z.current) * (1 - Math.exp(-delta * 9));
+      camera.position.copy(orbitDir.current).multiplyScalar(z.current).add(MARS_CENTRE);
+      camera.lookAt(MARS_CENTRE);
+      setClip(camera, z.current);
     }
+    if (center.current !== null) center.current.quaternion.copy(dragQ.current);
     const d = dive.current;
     if (phase === "dive" && d !== null && !d.done) {
       d.elapsed = Math.min(DIVE_SECONDS, d.elapsed + delta);
       const k = stagedProgress(d.elapsed);
+      // bring the clicked mission back under the camera as we leave
+      dragQ.current.slerp(IDENTITY, 1 - Math.exp(-delta * 7));
 
       const dist = Math.exp(Math.log(d.dist0) + (Math.log(d.dist1) - Math.log(d.dist0)) * k);
       // the path is anchored on the surface point, so the camera never enters
@@ -250,20 +343,6 @@ export function MarsScene({
     <>
       <SpaceBackdrop />
       <RegionalPlane />
-      {phase === "orbit" && (
-        <OrbitControls
-          target={[0, -MARS_RADIUS, 0]}
-          enablePan={false}
-          enableDamping
-          dampingFactor={0.08}
-          rotateSpeed={0.6}
-          zoomSpeed={0.9}
-          minDistance={MARS_RADIUS * 1.35}
-          maxDistance={MARS_RADIUS * 4.2}
-          minPolarAngle={0.1}
-          maxPolarAngle={1.28}
-        />
-      )}
       <group ref={center} position={[0, -MARS_RADIUS, 0]} name="mars-globe">
         <group ref={globeGroup} quaternion={spin}>
           <mesh ref={globeMesh}>
@@ -342,7 +421,7 @@ export function MarsScene({
 /** Console hint shared by the Mars HUD. */
 export function marsHint(lang: Lang, available: number, total: number): string {
   if (lang === "zh") {
-    return `拖动旋转 · 滚轮缩放 · 选择任务地点（${available}/${total} 个有地形数据）`;
+    return `任意方向拖动星球 · 滚轮缩放 · 选择任务地点（${available}/${total} 个有地形数据）`;
   }
-  return `Drag to orbit · scroll to zoom · pick a mission area (${available} of ${total} with terrain)`;
+  return `Drag the globe in any direction · scroll to zoom · pick a mission area (${available} of ${total} with terrain)`;
 }
