@@ -1,132 +1,199 @@
 # Mars Survival Guide: Martian Map
 
+[English](README.md) · [简体中文](README.zh-CN.md)
+
 A working Marswalk planning and mission-simulation console built for the **NASA International Space Apps Challenge 2026**, addressing [Interplanetary Survival Guide: Martian Map](https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/).
 
-Plan a science excursion from a simulated base in the western delta of Jezero Crater, compare round-trip options against a resource budget, replay the mission minute by minute, and replan an emergency return when a simulated incident hits. The terrain, imagery, and science-site objectives come from real NASA data; the mission itself is simulated, and every simulated element is labeled as such in the app.
+**[Try the Live Console](https://mars-survival-guide-green.vercel.app/)** · **[GitHub Repository](https://github.com/hexwarrior6/mars-survival-guide)** · **[Submission Details & References](docs/SUBMISSION.md)** · **[3-Minute Demo Script](docs/DEMO.md)**
 
-**[Try the live console](https://mars-survival-guide-green.vercel.app/)** · [Project description, NASA sources and AI disclosure](docs/SUBMISSION.md)
+[![Watch Demonstration Video](docs/visuals/video-thumbnail.jpg)](https://youtu.be/ky0IvXPYx0g)
+*Click the image above to watch the demonstration video on [YouTube](https://youtu.be/ky0IvXPYx0g).*
 
-![Real application: Jezero mission planning console](docs/visuals/submission-live.png)
+---
 
-The screenshot above is from the running application. Design concept images elsewhere in the documentation are labeled separately.
+## Overview
 
-## Implemented features
+**How far can an astronaut explore across the Martian surface and still return safely to base?**
 
-### Real NASA terrain data package
+Mars Survival Guide addresses this question through a focused, science-driven exploration console set in the western delta of **Jezero Crater**. Astronauts depart from a simulated base to investigate scientifically authentic rock strata and crater formations, balance travel time against simulated resource reserves, and respond to sudden traversal incidents such as corridor closures or battery degradation.
 
-- MRO CTX DEM mosaic (20 m/px) and CTX ortho mosaic (~5 m/px) covering a 5.12 × 5.12 km area of Jezero's western delta, resampled to a 256 × 256 planning grid at 20 m (`schemaVersion` 1.1, published in `public/data/jezero/`).
-- Full provenance ships with the data: `sources.json` (6 source records with mission, instrument, product IDs, retrieval dates, and usage terms), SHA256 checksums for every published asset, an ortho-to-DEM alignment report with stated control-point uncertainties, and an independent HiRISE 1 m DTM cross-validation.
-- All data is classified as **observed / derived / simulated**. The package rebuild is deterministic (download script + single build script); `npm run validate:data` re-verifies schema and checksums. See `public/data/jezero/README.md`.
-- Science sites have mission-documented objectives (NASA/JPL Mars 2020 records) and landform-anchored positions with stated 50–200 m uncertainty — no fabricated sample coordinates.
+This application is an **exploratory planning prototype and educational console**, **not** a video game and **not** an operational astronaut navigation or life-support certification tool. Every element is explicitly categorized as **observed NASA data**, **derived calculation**, **display artwork**, or **simulated assumption**.
 
-### Deterministic route kernel
+---
 
-- A* and Dijkstra over an 8-neighbor graph: NoData cells, cells above the slope threshold (20°, a labeled simulation assumption), and event-blocked areas are impassable; diagonal moves through two blocked corners are rejected.
-- Two strategies per request: `shortest` and `terrain-aware` (normalized, weighted slope/climb penalties).
-- Edge cost is walking time with climb-direction asymmetry (net ascent adds +0.3 min/m; descent is unpenalized in v1). The return leg is always re-planned independently, never the reversed outbound path.
-- Per-resource budget check: outbound + science stop + return, with a reserve that never shrinks after a battery loss. Results carry explicit statuses (`feasible` / `over_budget` / `unreachable` / `invalid_input`) and reason codes; over-budget wording is limited to "no plan satisfying the budget was found under the searched strategies".
+## Real Application Interface
 
-### 3D terrain sandbox (React Three Fiber)
+The screenshots below are captured directly from the running application:
 
-- Full-viewport terrain stage textured with the CTX ortho mosaic; sun direction matches the DEM shadowing convention (northwest). Routes hug the terrain: outbound warm white, return amber, emergency return amber, invalidated routes gray dashed.
-- Site selection plays a two-stage camera: first focus on the site, then pull back until the whole round trip fills the frame at a close 45° oblique. Screen-space label placement keeps the selected site and base labels clear of the plan by nudging them (and hides non-selected site labels while a plan is shown); the cut-away block reads in the overview. A skippable opening camera move runs on load; `prefers-reduced-motion` goes straight to stable views.
-- A display-only cut-away block (side faces, synthetic strata, lit rim, base slab) gives the plate physical weight; its top edge follows the real DEM cells and the strata pattern is labelled artistic in the legend and the sources drawer.
-- A baked display surface replaces the single-band ortho and stays led by the photograph: the real CTX luminance supplies the tone and structure, a near-neutral warm tint only lifts it to screen range, and slope/curvature plus a faint DEM horizon-scan shadow modulate it by a few percent. Micro-relief normals keep close views from turning to mush. Sky gradient, ground haze, dust and a bloom chain finish the frame; all of it is display-only and labelled, and the 2D plan view still draws the untouched ortho.
-- From Mars: the app opens on a real Viking MDIM 2.1 globe (NASA/JPL/USGS, public domain, shipped with the app) at true scale. Mission locations come from `public/data/missions.json`: entries with a `path` have a terrain package and can be entered (Jezero in this build); the rest are future areas marked `NO PACKAGE`. Adding a location is one manifest entry plus its package — the globe re-orients on the loaded package's lat/lon bounds and the pin appears. The globe is a trackball: drag in any direction and the surface follows, with no angle limits; the wheel zooms 1.15–4.2 R. Its material is a custom shader with a real terminator, a camera-side fill, a sun highlight and an atmospheric rim, plus a normal map derived from the albedo luminance for micro-relief (artistic, not a measured global DEM). The star field turns with the same trackball quaternion, so the sky reacts with the globe; its stars stay a fixed apparent size while zooming, as a sky at infinity should. One camera and one scene: clicking an available location starts a continuous logarithmic approach through three scales: Mars → 60 km CTX regional context → local 3D mission terrain. The orbital leg plays at 2× speed and smoothly returns to normal speed for the final approach. The colourized globe gradually approaches the local warm-grey display palette as regional detail resolves. The camera preserves the orbit gaze at departure and reaches the exact sandbox overview at arrival; geographic east and north align across the globe and local maps. The 60 km regional mesh has an exact opening for the measured mission DEM and keeps the local terrain embedded throughout the approach. Heights stay fixed while the regional photo gently resolves from soft to sharp. Near the mission, the surround darkens; on arrival it retires during a brief amber colour-reveal sweep, leaving only the task sandbox. A display-only apron joins the measured boundary to Mars curvature outside the planning package; it is not a measured regional DEM (dynamic near/far, no cut). `Skip` / Esc, `?intro=off`, `?intro=auto`, `prefers-reduced-motion`, and a `From Mars` toolbar button control it. On landing a 2.4 s amber band sweeps left to right, revealing the final warm task texture from the aligned regional photograph while regional context fades away. The approach stays grey until the sweep starts; skip and reduced motion show the finished warm surface immediately. Skipping or reduced motion does not play it.
-- Helmet cam: ride the astronaut's own eye level along the computed route (position and bearing come from the deterministic runtime, so scrubbing the timeline moves the view). Suit HUD shows O₂/PWR, leg, phase, T+, bearing and eye height; it is labelled as a simulated position with artistic near-field detail, and needs a started mission.
-- A pulsing base beacon, a light travelling the planned route, and a red screen pulse when an event lands — all display-only.
-- A 70 m terrain-snapped selection ring, base flag, and astronaut figure provide scale references. The astronaut is true 1.7 m scale, paired with a magnified position light pillar so the location is visible from overview distance — the legend states the pillar is not to scale.
-- Robustness: a frame-stall watchdog falls back to a timer-driven render loop (background tabs keep rendering), plus a WebGL error boundary and a 2D fallback view.
+### 1. 3D Sandbox Mission Planning
+![3D Sandbox Mission Planning](docs/visuals/screenshot-overview-3d.png)
+*Full-viewport 3D terrain stage driven by real MRO CTX DEM elevation and ortho imagery, modeled northwest lighting, landform-anchored science destinations (SITE-A/B/C), true 1.7 m scale reference figure, and terrain-hugging outbound/return routes with instantaneous budget evaluation.*
 
-### Mission simulation
+### 2. Deterministic Timeline & Emergency Replanning
+![Deterministic Timeline & Emergency Replanning](docs/visuals/screenshot-timeline-return.png)
+*Minute-by-minute deterministic replay along the mission timeline. When a simulated traversal incident strikes (e.g. passage closure at T+130 min), the invalidated segment is dashed in gray, a safe detour route is computed in real time, and the amber returnable-range boundary contracts dynamically.*
 
-- Deterministic engine: the complete mission state at simulated minute T is a pure function of T (`missionStateAt`), so replaying any moment needs no stored history.
-- The astronaut walks the route with per-edge timing. Two event types can fire: battery loss and area closure. An emergency return is re-planned from the exact interpolated position (mid-edge events keep the walked position and consumed resources).
-- Outcomes are shown honestly: mission complete, reserve breach after returning (amber, never green), or **STRANDED — no feasible return** (red, clock frozen).
-- Four scripted presets: nominal round trip, mid-mission closure, reserve breach, stranded.
+### 3. Plan A/B Multi-Strategy Comparison
+![Plan A/B Comparison](docs/visuals/screenshot-plan-compare.png)
+*Lock Plan A to evaluate side-by-side trade-offs against Plan B under altered inputs (e.g. Shortest vs. Terrain-aware routing, variable science-stop durations). Dual route ribbons display simultaneously alongside a delta comparison table.*
 
-### Draggable mission timeline
+### 4. 2D Orthophoto Cross-Check & WebGL Fallback
+![2D Orthophoto Cross-Check](docs/visuals/screenshot-2d-check.png)
+*True top-down orthographic map utilizing the ungraded CTX imagery resampled to 20 m/px from the approximately 5 m/px source mosaic, providing an independent spatial verification view with scale bar and north arrow, as well as a fallback when WebGL is unavailable.*
 
-- A bottom timeline shows leg color bands (outbound / science stop / return / emergency return), event ticks, the T+ clock, and play/pause controls; the mission card holds the ×1–×16 speed selector.
-- Scrub to any minute: astronaut position, phase, resources, event log, and route states all re-derive for that T, synchronized in 3D and 2D. Dragging pauses playback; clicking an event tick seeks to it; `←`/`→` step ±1 minute.
-- Scrubbing across events replays them deterministically (no double-applied losses), and scrubbing back restores the earlier state exactly.
+---
 
-### Returnable range
+## Key Capabilities
 
-- A reverse-Dijkstra cost field spreads from the base, charging every edge in the real walking direction (climb asymmetry included) under the current closure mask.
-- The boundary plus a faint fill render on the terrain in 3D and 2D, shrinking as remaining resources deplete and stepping inward the moment a battery loss or closure hits. The boundary is labeled simulated and honest to ±1–2 planning cells (20 m grid + alignment uncertainty).
-- The app separates "**can I still get home right now**" (the range) from "**can the mission still finish**" (the abort policy). Both are stated plainly; neither is rendered as a success state.
+- **Real NASA Terrain Package**:
+  - $5.12 \times 5.12\text{ km}$ area of Jezero Crater western delta resampled to a $256 \times 256$ grid at $20\text{ m/px}$, generated deterministically from MRO CTX DEM and orthophoto mosaics.
+  - Complete data provenance in `sources.json`, SHA256 checksums, control-point alignment reports, and HiRISE 1 m DTM cross-validation records.
+  - Science objectives anchored to documented NASA/JPL Mars 2020 Perseverance exploration goals with explicit $50\text{--}200\text{ m}$ position uncertainty.
+- **Deterministic Planning Kernel**:
+  - $A^*$ and Dijkstra search over an 8-neighbor graph rejecting impassable cells ($>20^\circ$ slope, NoData, or closed areas) and diagonal corner-cutting.
+  - Two distinct pathfinding strategies: **Shortest** (minimal geometric distance) and **Terrain-aware** (penalizes steep terrain and energy-draining ascents).
+  - Simulated climb asymmetry: net elevation gain incurs a $+0.3\text{ min/m}$ ascent penalty; the return leg is independently computed from scratch.
+- **Resource Budget & Safety Margins**:
+  - Outbound walk + on-site science stop + return walk evaluated against abstract $0\text{--}100$ budget units (oxygen and battery).
+  - Checks an adjustable reserve threshold (20% by default, a simulation assumption). Over-budget or unreachable destinations are flagged with explicit reason codes.
+- **Dynamic Returnable Range**:
+  - Reverse-Dijkstra cost field propagating from base across the real elevation grid, continuously mapping the boundary from which the astronaut can safely reach home right now under prevailing resource levels.
+- **Scrubbable Mission Timeline**:
+  - Mission state at simulated minute $T$ is a pure mathematical function of $T$ (`missionStateAt`).
+  - Scrub forward and backward without compounding errors or duplicating events.
+  - Four scripted presets: nominal round trip, passage closure with detour, reserve breach, and stranded outcome.
+- **Plan A/B Comparison**:
+  - Freeze any valid route as Plan A, tweak parameters (destination, strategy, science-stop duration, initial resources), and compare metrics with direct numerical deltas ($\Delta = B - A$).
+- **First-Person Helmet Cam**:
+  - View the terrain from the simulated astronaut's first-person perspective with active telemetry HUD (heading, oxygen, battery, phase, elevation).
+- **Planetary Approach & Context**:
+  - Starts from a Viking MDIM 2.1 colorized global Mars sphere and zooms continuously through a 60 km CTX regional context down into the local 3D sandbox.
+- **Bilingual Interface**:
+  - English by default; toggle instantly to Chinese via the toolbar button or `#CNZH` URL hash.
 
-### Plan A/B comparison
+---
 
-- Lock the current plan as Plan A, change inputs (site, strategy, resources, stop duration) to get Plan B, then compare: both routes render together, with Plan A as subdued dashed lines.
-- A per-item delta table covers distance, duration, oxygen, battery, margins after return, and feasibility, with the input conditions of each plan labeled.
+## Data Truth & Simulation Boundaries
 
-### Adjustable science stop duration
+To maintain scientific integrity, this project strictly separates empirical NASA observations from engineering models and artistic treatments:
 
-- The science stop length is adjustable in the mission card; changing it (like any other input) generates a new plan under a fresh request ID, so stale results never linger.
+| Category | Elements | Role & Limitations |
+| :--- | :--- | :--- |
+| **Observed Data** *(NASA)* | • MRO CTX DEM ($20\text{ m/px}$)<br>• MRO CTX Orthophoto ($5\text{ m/px}$)<br>• MRO HiRISE DTM ($1\text{ m/px}$)<br>• Viking MDIM 2.1 Global Mosaic<br>• Mars 2020 Science Objectives | Real scientific observations. CTX DEM sets planning grid elevations; CTX ortho provides 2D/3D map texture; HiRISE serves as an independent cross-check ($\sim 93\text{ m}$ north/south registration offset recorded); Viking mosaic provides global context. |
+| **Derived Calculations** *(Deterministic)* | • $256 \times 256$ Elevation & Slope Grids<br>• $A^*$ / Dijkstra Traversal Routes<br>• Asymmetric Climb Travel Times<br>• Reverse-Dijkstra Cost Field<br>• Returnable Range Contours | Computed from DEM and a simplified, simulated movement model. Deterministic and covered by a project suite of 70 automated tests. Not certified for real flight operations. |
+| **Display Artwork** *(Labeled Visuals)* | • Cut-away Block Synthetic Strata<br>• Surface Tint & Micro-relief Normals<br>• Mars Globe Albedo Bump Map<br>• Atmosphere, Sky Gradient & Dust Haze<br>• $70\text{ m}$ Selection Ring & Scale Light Pillar | Visual enhancements designed for aesthetic depth and clarity. All such elements are explicitly identified as non-scientific in the legend and sources drawer. Vertical relief exaggerated $\times 4.5$ in 3D. |
+| **Simulated Scenarios** *(Assumptions)* | • Jezero Base Facility Location<br>• Suited Walking Pace ($40\text{ m/min}$)<br>• Abstract Budget ($0\text{--}100$ units)<br>• $20\%$ Safety Reserve Margin<br>• Traversal Incidents (Closure, Battery Drop) | Hypothetical operational assumptions established for simulation demonstration. Documented with acceptable parameter ranges in `sources.json`. |
 
-### 2D check view and transparency
+---
 
-- An undistorted 2D ortho view serves both as a verification view (routes, scale bar, north arrow, blocked areas) and as the automatic fallback when WebGL is unavailable.
-- A sources & assumptions drawer lists the 6 source records, the registry of simulated assumptions (speeds, reserves, stop duration, thresholds), and the observed/derived/simulated classification. A "SIMULATED SCENARIO · REAL TERRAIN DATA" badge is always visible.
-- The interface is English by default; Chinese is available via the `#CNZH` URL suffix.
+## Quickstart & CLI Commands
 
-## What is real and what is simulated
+### Prerequisites
+- Node.js (tested with Node 24)
+- npm
 
-**Real (NASA):** terrain, imagery, science-site objectives, provenance and alignment records.
-
-**Simulated (labeled everywhere):** the base, events, science stop duration, walking speeds and consumption rates, and resource units (abstract 0–100 budget points, never liters or watt-hours).
-
-Route and resource estimates rest on documented simplifications (`sources.json` → assumptions). This is a research and educational prototype, **not validated astronaut navigation or life-support guidance**.
-
-## Measured performance
-
-All numbers are from recorded acceptance runs on Apple M4 (macOS arm64) in a real browser session (ANGLE Metal WebGL):
-
-- Full round-trip plan (both strategies) on the real 256 × 256 grid: ~5–12 ms in the kernel; in-browser planning interactions measured 15.3–21.3 ms against the ≤ 1 s target.
-- Full-grid returnable-range field: the ≤ 50 ms test passes when test files run serially; concurrent test load can exceed this threshold. This is a local performance gate, not a guarantee for every device.
-- Historical terrain-view load and display-bake measurements are recorded in the acceptance notes. The globe and regional imagery added later increase the download; first-load performance for the final deployment must be measured separately.
-- Draw calls: 18 with the forward renderer, 32–37 once the post chain is active (it accumulates passes). Frame rate must be re-measured on the demo machine: the bloom chain disables itself when the first ~1.6 s of frames average below 30 fps, so a slow GPU degrades instead of stuttering.
-
-## Testing and quality
-
-- 69 automated tests: kernel search and budget invariants, loader validation, display mapping, simulation determinism and event semantics, returnable-field consistency with the forward search, and real-data performance gates.
-- `npm run typecheck`, `npm run build`, and `npm run validate:data` all pass in CI-style local runs.
-
-## Run it
-
-Requires Node (tested with Node 24):
+### Installation & Development
 
 ```bash
+# Clone the repository
+git clone https://github.com/hexwarrior6/mars-survival-guide.git
+cd mars-survival-guide
+
+# Install dependencies
 npm install
-npm run dev            # development server
+
+# Start local development server (Vite)
+npm run dev
+# Open http://localhost:5173 (English) or http://localhost:5173/#CNZH (Chinese)
 ```
 
-Other commands:
+### Verification & Testing Commands
 
 ```bash
-npm test -- --no-file-parallelism  # 69 tests, serial performance checks
-npm run build          # production build
-npm run validate:data  # verify data package schema and checksums
-npm run demo           # CLI route-planning demo
+# Run type checking
+npm run typecheck
+
+# Run test suite serially (70 automated tests, performance gate requirement)
+npm test -- --no-file-parallelism
+
+# Validate published data packages (verifies schema 1.1 and 14 SHA256 checksums)
+npm run validate:data
+
+# Build production bundle
+npm run build
+
+# Run CLI route planning demonstration
+npm run demo
 ```
 
-## Documentation
+---
 
-- [docs/SUBMISSION.md](docs/SUBMISSION.md) — English project description, NASA data, references and AI disclosure
-- [docs/DEMO.md](docs/DEMO.md) — a short, repeatable demo script
-- [docs/README.md](docs/README.md) — documentation index (Chinese)
-- [docs/RESEARCH.md](docs/RESEARCH.md) — research and source limitations
-- [docs/SPECIFICATION.md](docs/SPECIFICATION.md) — product and engineering contracts
-- [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) — phased implementation and acceptance records
-- [docs/VISUAL-DIRECTION.md](docs/VISUAL-DIRECTION.md) — visual direction and art/science boundaries
-- [docs/VISUAL-UPGRADE-PLAN.md](docs/VISUAL-UPGRADE-PLAN.md) — demo-video-oriented 3D look upgrade plan (proposal, not implemented)
+## Tech Stack & Architecture
 
-Not implemented (documented future extensions in `docs/IMPLEMENTATION.md` §8): MEDA weather history, radiation models, multi-target itineraries, route smoothing, and an AI explanation assistant.
+- **Core Framework**: React 19, TypeScript
+- **3D Visualization**: Three.js, React Three Fiber (`@react-three/fiber`), Drei (`@react-three/drei`)
+- **Build Tool**: Vite 7, Rollup
+- **Test Framework**: Vitest (70 unit and integration tests)
+- **Algorithms**: Custom deterministic 8-neighbor $A^*$, Dijkstra, and reverse-cost wave expansion
+- **Data Preprocessing**: Python, GDAL, NumPy (scripts located in `scripts/data/`)
+- **Deployment**: Static zero-backend deployment on Vercel
 
-## Attribution and participation
+```text
+src/
+├── domain/       # Data schemas, package loading, coordinate transforms, assumptions
+├── routing/      # 8-neighbor graph, A*/Dijkstra search, budget validator, cost fields
+├── simulation/   # Deterministic state machine (missionStateAt), replay runtime, presets
+├── data/         # Fetch and Node file system loaders
+├── ui/           # React Three Fiber Sandbox, 2D Canvas fallback, HUD, timeline, panels
+└── cli/          # Standalone Node demo CLI (npm run demo)
+```
 
-**Liang-Tzu**, Singapore Local Event. Team ownership and the selected challenge were verified on the competition website on 2026-11-15. The project was submitted for judging on 2026-11-15 at 23:49 Singapore time; the competition website confirmed "Project Submitted for Judging". [Watch the submitted demo](https://youtu.be/41C24oOkQJE). The submitted video is approximately 35 seconds, exceeding the competition's 30-second limit; submission confirmation does not establish Global Award eligibility. See [AI use disclosure and references](docs/SUBMISSION.md).
+---
 
-Code is licensed under [MIT](LICENSE). External datasets and imagery retain their own terms and attribution requirements; the repository license does not relicense them.
+## Verification & Performance
+
+Validation on the current macOS / Node 24 environment includes type checking, a production build, verification of 14 published data files, and **70 passing tests** across 9 test files.
+
+- Route-planning timings vary by target and environment; recorded local kernel runs complete well within the 1-second interaction target. Historical browser measurements are documented in [acceptance records](docs/IMPLEMENTATION.md).
+- The returnable-range test enforces a 50 ms local performance gate. Run tests serially: concurrent load can exceed that threshold.
+- Rendering performance depends on the device, view and effects. A stall watchdog and adaptive bloom fallback support slower environments; no universal frame-rate guarantee is made.
+
+---
+
+## Limitations & Scope
+
+- **Prototype Disclaimer**: This is an educational and research prototype. It does not provide certified astronaut navigation or life-support telemetry.
+- **Grid Resolution**: The $20\text{ m}$ DEM grid cannot resolve sub-pixel hazards, crevasses, or small boulders.
+- **Site Uncertainty**: Science targets are landform anchors with documented $50\text{--}200\text{ m}$ spatial uncertainty.
+- **Inter-Mission Registration**: An approximate $93\text{ m}$ north-south registration discrepancy exists between the HiRISE DTM and CTX DEM products in the alignment cross-check; its cause has not been established here.
+- **Documented Extensions**: Multi-target itineraries, MEDA environmental weather history, ionizing radiation prediction, and runtime LLM agents are documented future extensions (`docs/IMPLEMENTATION.md` §8) and are not implemented.
+
+---
+
+## Project Documentation Index
+
+- [docs/SUBMISSION.md](docs/SUBMISSION.md) — Formal project description, NASA dataset references, and AI disclosure
+- [docs/DEMO.md](docs/DEMO.md) — A 3-minute repeatable demonstration script
+- [docs/README.md](docs/README.md) — Implementation and phase documentation guide (Chinese)
+- [docs/SPECIFICATION.md](docs/SPECIFICATION.md) — Engineering requirements, algorithmic contracts, and interfaces
+- [docs/RESEARCH.md](docs/RESEARCH.md) — Competition requirements, dataset evaluation, and evidence boundaries
+- [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) — Implementation milestones and acceptance records
+- [docs/VISUAL-DIRECTION.md](docs/VISUAL-DIRECTION.md) — Visual principles and art/science separation boundaries
+- [docs/VISUAL-UPGRADE-PLAN.md](docs/VISUAL-UPGRADE-PLAN.md) — 3D sandbox aesthetic enhancement records
+
+---
+
+## Attribution, Submission History & License
+
+- **Team**: **Liang-Tzu**, Singapore Local Event.
+- **Competition Submission Record**:
+  - The project was officially submitted for judging on 2026-11-15 at 23:49 Singapore time (confirmed by the Space Apps portal, with final hyperlink update recorded at 23:52).
+  - The historical submitted demonstration video was approximately 35 seconds ([Watch historical video](https://youtu.be/41C24oOkQJE)).
+- **Repository Demonstration**:
+  - As of 2026-11-16, an updated demonstration video ([Watch latest video](https://youtu.be/ky0IvXPYx0g)) is featured for repository visitors. This updated showcase is distinct from the formal judging submission record; no official acceptance or eligibility status is claimed.
+- **AI Tool Disclosure**:
+  - AI tools (Codex, Antigravity) were employed for research assistance, implementation planning, code scaffolding, automated testing, and documentation formatting.
+  - The application contains **no runtime LLM**; all pathfinding, budgeting, and simulation logic are deterministic TypeScript calculations. Full disclosure is available in [docs/SUBMISSION.md](docs/SUBMISSION.md).
+- **License**:
+  - Code is licensed under the [MIT License](LICENSE).
+  - External NASA datasets, HiRISE/CTX imagery, and Viking mosaics remain under their respective public domain and academic citation terms. See `public/data/jezero/sources.json` and `public/data/mars/README.md`.

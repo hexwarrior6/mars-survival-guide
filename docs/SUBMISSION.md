@@ -2,9 +2,9 @@
 
 Live application: https://mars-survival-guide-green.vercel.app/
 
-Submitted demonstration: https://youtu.be/41C24oOkQJE
+Demonstration video: https://youtu.be/ky0IvXPYx0g
 
-Submitted for judging: 2026-11-15 23:49 Singapore time, confirmed by the competition website. The demonstration is approximately 35 seconds and exceeds the stated 30-second limit; this confirmation does not establish Global Award eligibility.
+Submitted for judging: 2026-11-15 23:49 Singapore time (final hyperlink update confirmed at 23:52), confirmed by the competition website. The historical submitted demonstration (https://youtu.be/41C24oOkQJE) is approximately 35.02 seconds and exceeds the stated 30-second limit; this confirmation does not establish Global Award eligibility. The updated demonstration (https://youtu.be/ky0IvXPYx0g) is maintained for repository presentation and is clearly distinguished from the initial competition form submission.
 
 ## Project summary
 
@@ -50,7 +50,7 @@ CTX credits: Mangold et al. / NASA / JPL-Caltech / USGS. HiRISE credits: NASA / 
 
 ## AI use disclosure
 
-AI coding agents assisted with research, implementation planning, data-processing scripts, application code, interface and 3D rendering work, automated tests, debugging, documentation and deployment preparation. Codex was used in the project workflow. AI image generation was used for visual concept images in `docs/visuals/stage-03.png`, `stage-04.png` and `stage-05.png`; these are explicitly labeled concept art, not screenshots or scientific observations. Community Three.js skills supported the development workflow.
+AI coding agents assisted with research, implementation planning, data-processing scripts, application code, interface and 3D rendering work, automated tests, debugging, documentation and deployment preparation. Codex was used in the project workflow; Antigravity (Gemini 3.8 Flash) later assisted with bilingual repository documentation, application screenshots and code cleanup. AI image generation was used for visual concept images in `docs/visuals/stage-03.png`, `stage-04.png` and `stage-05.png`; these are explicitly labeled concept art, not screenshots or scientific observations. Community Three.js skills supported the development workflow.
 
 The project does not contain a runtime language-model planning agent. Route searches, budgets, event handling and replay are deterministic TypeScript calculations. AI-generated prose or artwork is not treated as NASA evidence. Contributions and checks are documented through source provenance, tests and the Git history; we do not claim a measured percentage of AI or human authorship.
 

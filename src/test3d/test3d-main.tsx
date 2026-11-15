@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -17,9 +17,7 @@ function Box() {
 }
 
 function App() {
-    const [frameloop, setFrameloop] = useState<"always" | "never">("always");
-    const handleStall = () => setFrameloop("never");
-    return (
+  return (
     <Canvas
       camera={{ position: [3, 2, 4], fov: 50 }}
       onCreated={(s) => {
@@ -34,20 +32,6 @@ function App() {
       <Box />
     </Canvas>
   );
-}
-
-function StallGuard({ onStall }: { onStall: () => void }) {
-  const last = useRef(performance.now());
-  useFrame(() => {
-    last.current = performance.now();
-  });
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (performance.now() - last.current > 1500) onStall();
-    }, 400);
-    return () => window.clearInterval(id);
-  }, [onStall]);
-  return null;
 }
 
 createRoot(document.getElementById("root") as HTMLElement).render(
