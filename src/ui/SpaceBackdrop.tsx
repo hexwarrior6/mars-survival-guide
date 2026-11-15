@@ -18,13 +18,12 @@ const smoothstep = (e0: number, e1: number, x: number): number => {
 };
 
 export function SpaceBackdrop({
-  orientation,
+  meshRef,
 }: {
-  /** the globe's current trackball rotation: the sky turns with the view */
-  orientation: React.MutableRefObject<THREE.Quaternion>;
+  /** the Mars scene owns the transform so the sky never lags the camera */
+  meshRef: React.RefObject<THREE.Mesh | null>;
 }): JSX.Element {
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
-  const mesh = useRef<THREE.Mesh>(null);
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
@@ -40,17 +39,10 @@ export function SpaceBackdrop({
     // the star shell pops when the Mars scene unmounts
     const dist = Math.hypot(camera.position.x, camera.position.y, camera.position.z);
     uniforms.uFade.value = smoothstep(Math.log(20000), Math.log(60000), Math.log(dist));
-    const m = mesh.current;
-    if (m === null) return;
-    m.position.copy(camera.position);
-    m.quaternion.copy(orientation.current);
-    // keep it beyond near and inside far at every altitude of the dive
-    const r = Math.max(camera.near * 2.5 + 400, 2000);
-    m.scale.setScalar(Math.min(r, camera.far * 0.6));
   });
 
   return (
-    <mesh ref={mesh} name="space-backdrop" frustumCulled={false} renderOrder={-900}>
+    <mesh ref={meshRef} name="space-backdrop" frustumCulled={false} renderOrder={-900}>
       <sphereGeometry args={[1, 32, 24]} />
       <shaderMaterial
         side={THREE.BackSide}

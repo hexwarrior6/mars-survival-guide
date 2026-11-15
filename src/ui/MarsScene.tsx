@@ -138,6 +138,7 @@ export function MarsScene({
     [normal],
   );
 
+  const skyMesh = useRef<THREE.Mesh>(null);
   const globeMat = useRef<THREE.ShaderMaterial | null>(null);
   const hazeMat = useRef<THREE.ShaderMaterial | null>(null);
   const center = useRef<THREE.Group | null>(null);
@@ -346,6 +347,17 @@ export function MarsScene({
       }
       if (globeGroup.current !== null) globeGroup.current.visible = o > 0.01;
     }
+
+    // the sky must follow the camera *after* this frame's zoom/rotation update;
+    // doing it in the backdrop's own useFrame lags a frame and makes the stars
+    // slide during a zoom, then snap back when it stops
+    const sm = skyMesh.current;
+    if (sm !== null) {
+      sm.position.copy(camera.position);
+      sm.quaternion.copy(dragQ.current);
+      const r = Math.max(camera.near * 2.5 + 400, 2000);
+      sm.scale.setScalar(Math.min(r, camera.far * 0.6));
+    }
   });
 
   // leaving the stage restores the terrain's clip planes (skip from orbit)
@@ -360,7 +372,7 @@ export function MarsScene({
 
   return (
     <>
-      <SpaceBackdrop orientation={dragQ} />
+      <SpaceBackdrop meshRef={skyMesh} />
       <RegionalPlane />
       <group ref={center} position={[0, -MARS_RADIUS, 0]} name="mars-globe">
         <group ref={globeGroup} quaternion={spin}>
