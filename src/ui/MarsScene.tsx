@@ -219,9 +219,11 @@ export function MarsScene({
     };
     const wheel = (e: WheelEvent): void => {
       e.preventDefault();
-      const k = Math.exp(e.deltaY * 0.0012);
+      // normalise line/page deltas: some wheels report 3 instead of ~120
+      const d = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
+      const k = Math.exp(d * 0.0018);
       zoom.current.target = Math.min(
-        Math.max(zoom.current.target * k, MARS_RADIUS * 1.35),
+        Math.max(zoom.current.target * k, MARS_RADIUS * 1.15),
         MARS_RADIUS * 4.2,
       );
     };

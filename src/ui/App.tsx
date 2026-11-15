@@ -205,14 +205,27 @@ export function App(): JSX.Element {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  // ?intro=auto: perform the dive without a click (demo capture)
+  // ?intro=auto: perform the dive without a click (demo capture). Any real
+  // interaction on the globe cancels it — otherwise a zoom test suddenly
+  // turns into the dive and reads as a jump.
   useEffect(() => {
     if (!autoIntro || marsPhase !== "orbit" || missions === null) return;
+    let cancelled = false;
+    const cancel = (): void => {
+      cancelled = true;
+    };
+    window.addEventListener("pointerdown", cancel, true);
+    window.addEventListener("wheel", cancel, { capture: true, passive: true });
     const id = window.setTimeout(() => {
+      if (cancelled) return;
       setMarsNotice(null);
       setMarsPhase("dive");
     }, 2200);
-    return () => window.clearTimeout(id);
+    return () => {
+      window.clearTimeout(id);
+      window.removeEventListener("pointerdown", cancel, true);
+      window.removeEventListener("wheel", cancel, true);
+    };
   }, [autoIntro, marsPhase, missions]);
 
   useEffect(() => {
