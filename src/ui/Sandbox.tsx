@@ -206,14 +206,14 @@ function TerrainMesh({
     // artistic detail, no invented landforms, disabled on the raw-ortho path.
     material.customProgramCacheKey = () => "sandbox-terrain-grain";
     material.onBeforeCompile = (shader) => {
+      shader.uniforms.uScanReveal = scanReveal;
+      shader.uniforms.uScanHalf = { value: (terrain.height * terrain.cellSizeM) / 2 + 160 };
       shader.vertexShader = shader.vertexShader
         .replace("#include <common>", "#include <common>\nvarying vec3 vWPos;")
         .replace(
           "#include <begin_vertex>",
           "#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;",
         );
-      shader.uniforms.uScanReveal = scanReveal;
-      shader.uniforms.uScanHalf = { value: (terrain.height * terrain.cellSizeM) / 2 + 160 };
       inject(shader, true);
       shader.fragmentShader = shader.fragmentShader
         .replace(
@@ -238,25 +238,18 @@ function TerrainMesh({
           float detail = mix(dA, dB, 0.5);
           diffuseColor.rgb *= 0.93 + 0.14 * detail;
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.03, 0.99, 0.95), detail * 0.35);
-          if (uScanReveal < 0.999) {
-            // landing scan: ahead of the front the surface is a raw data grid,
-            // behind it the display surface; the front itself glows amber
+          if (uScanReveal > 0.001 && uScanReveal < 0.999) {
+            // a bright scan line sweeps the finished surface; the texture is
+            // never replaced, so the landing cannot flip the whole block
             float front = mix(-uScanHalf, uScanHalf, uScanReveal);
-            float revealed = 1.0 - smoothstep(front - 70.0, front + 70.0, vWPos.z);
-            float gx = abs(fract(vWPos.x / 220.0) - 0.5);
-            float gz = abs(fract(vWPos.z / 220.0) - 0.5);
-            float gridLine = 1.0 - smoothstep(0.0, 0.035, min(gx, gz));
-            float grey = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-            vec3 dataCol = vec3(grey) * 0.32 + vec3(0.012, 0.024, 0.040);
-            dataCol += vec3(0.20, 0.32, 0.44) * gridLine * 0.55;
-            diffuseColor.rgb = mix(dataCol, diffuseColor.rgb, revealed);
             float edge = 1.0 - smoothstep(0.0, 150.0, abs(vWPos.z - front));
             float core = 1.0 - smoothstep(0.0, 28.0, abs(vWPos.z - front));
             float halo = 1.0 - smoothstep(0.0, 520.0, abs(vWPos.z - front));
             diffuseColor.rgb += vec3(1.0, 0.55, 0.22) * edge * 1.8;
             diffuseColor.rgb += vec3(1.0, 0.86, 0.66) * core * 2.6;
             diffuseColor.rgb += vec3(1.0, 0.5, 0.2) * halo * 0.12;
-          }`,
+          }
+`,
         );
     };
     return material;

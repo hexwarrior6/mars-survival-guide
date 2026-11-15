@@ -125,23 +125,15 @@ export function App(): JSX.Element {
       scanReveal.current.value = 1;
       return;
     }
-    // first turn the finished surface back into the data grid (180 ms), then
-    // sweep it forward again over 2 s
-    const PRE = 180;
-    const REVEAL = 2000;
+    // a single bright scan line sweeps the finished surface: no texture swap
+    scanReveal.current.value = 0.001;
+    const REVEAL = 2400;
     const t0 = performance.now();
     const tick = (): void => {
-      const ms = performance.now() - t0;
-      let done = false;
-      if (ms < PRE) {
-        scanReveal.current.value = 1 - ms / PRE;
-      } else {
-        const k = Math.min(1, (ms - PRE) / REVEAL);
-        const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-        scanReveal.current.value = e;
-        done = k >= 1;
-      }
-      scanRaf.current = done ? 0 : requestAnimationFrame(tick);
+      const k = Math.min(1, (performance.now() - t0) / REVEAL);
+      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      scanReveal.current.value = 0.001 + e * 0.998;
+      scanRaf.current = k < 1 ? requestAnimationFrame(tick) : 0;
     };
     scanRaf.current = requestAnimationFrame(tick);
   };

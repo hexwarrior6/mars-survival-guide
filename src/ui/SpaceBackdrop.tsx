@@ -12,16 +12,25 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { SUN_DIR } from "./SceneDressing.js";
 
+const smoothstep = (e0: number, e1: number, x: number): number => {
+  const t = Math.min(Math.max((x - e0) / (e1 - e0), 0), 1);
+  return t * t * (3 - 2 * t);
+};
+
 export function SpaceBackdrop(): JSX.Element {
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
   const mesh = useRef<THREE.Mesh>(null);
   const uniforms = useMemo(
-    () => ({ uTime: { value: 0 }, uSun: { value: SUN_DIR.clone() } }),
+    () => ({ uTime: { value: 0 }, uSun: { value: SUN_DIR.clone() }, uFade: { value: 1 } }),
     [],
   );
 
   useFrame((state) => {
     uniforms.uTime.value = state.clock.elapsedTime;
+    // hand the background back to the console sky before the landing: otherwise
+    // the star shell pops when the Mars scene unmounts
+    const dist = Math.hypot(camera.position.x, camera.position.y, camera.position.z);
+    uniforms.uFade.value = smoothstep(Math.log(20000), Math.log(60000), Math.log(dist));
     const m = mesh.current;
     if (m === null) return;
     m.position.copy(camera.position);
@@ -51,6 +60,7 @@ export function SpaceBackdrop(): JSX.Element {
           varying vec3 vDir;
           uniform float uTime;
           uniform vec3 uSun;
+          uniform float uFade;
 
           float h13(vec3 p) {
             p = fract(p * 0.1031);
@@ -125,7 +135,9 @@ export function SpaceBackdrop(): JSX.Element {
             col += vec3(1.0, 0.86, 0.66) * pow(sun, 1200.0) * 5.0;
             col += vec3(1.0, 0.55, 0.3) * pow(sun, 14.0) * 0.045;
 
-            gl_FragColor = vec4(col, 1.0);
+            // fade the sky to black before the landing instead of fading alpha:
+            // a transparent background would draw over the opaque terrain
+            gl_FragColor = vec4(col * uFade, 1.0);
           }
         `}
       />
