@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { JSX } from "react";
-import { Html, useTexture } from "@react-three/drei";
+import { Html, OrbitControls, useTexture } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { LoadedPackage } from "../domain/load.js";
@@ -28,13 +28,11 @@ import { RegionalPlane } from "./RegionalPlane.js";
 const GLOBE_TEXTURE = "/data/mars/viking_mdim21_color_3840.jpg";
 /** true Mars radius in metres: the globe and the terrain share one scale */
 export const MARS_RADIUS = 3396190;
-export const MARS_ORBIT_DIST = MARS_RADIUS * 2.35;
-/** slightly off-axis so lookAt is not degenerate and the limb reads */
-export const MARS_ORBIT_POS: [number, number, number] = [
-  MARS_ORBIT_DIST * 0.015,
-  MARS_ORBIT_DIST * 0.999,
-  MARS_ORBIT_DIST * 0.025,
-];
+export const MARS_ORBIT_DIST = MARS_RADIUS * 3.0;
+/** oblique start: 29° off the pole, 34° of azimuth, like holding a globe */
+const ORBIT_POLAR = 0.5;
+const ORBIT_AZIMUTH = 0.6;
+export const MARS_CENTRE = new THREE.Vector3(0, -MARS_RADIUS, 0);
 /** MDIM 2.1 is a 0–360 east product displayed from 180°W */
 const LON_ORIGIN_DEG = 180;
 /** five zoom levels with a short hold at each one, like tiles resolving */
@@ -47,7 +45,6 @@ const smoothstep = (e0: number, e1: number, x: number): number => {
   const t = Math.min(Math.max((x - e0) / (e1 - e0), 0), 1);
   return t * t * (3 - 2 * t);
 };
-const IDENTITY = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
 /** 0..1 staged progress: each segment eases, then holds before the next push */
@@ -109,7 +106,6 @@ export function MarsScene({
   onDiveDone: () => void;
 }): JSX.Element {
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
-  const gl = useThree((state) => state.gl);
   const texture = useTexture(GLOBE_TEXTURE);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
@@ -133,8 +129,6 @@ export function MarsScene({
   const globeGroup = useRef<THREE.Group | null>(null);
   const globeMesh = useRef<THREE.Mesh>(null!);
   const opacity = useRef(1);
-  const dragQ = useRef(new THREE.Quaternion());
-  const zoom = useRef({ current: MARS_ORBIT_DIST, target: MARS_ORBIT_DIST });
   const stageRef = useRef(-1);
   const dive = useRef<{
     elapsed: number;
@@ -156,69 +150,20 @@ export function MarsScene({
     [missions],
   );
 
-  // ---- drag the globe to rotate it (orbit state only) ---------------------
-  useEffect(() => {
-    if (phase !== "orbit") return;
-    const el = gl.domElement;
-    el.style.cursor = "grab";
-    let active = false;
-    let lastX = 0;
-    const down = (e: PointerEvent): void => {
-      if (e.button !== 0) return;
-      active = true;
-      lastX = e.clientX;
-      el.style.cursor = "grabbing";
-      el.setPointerCapture(e.pointerId);
-    };
-    const move = (e: PointerEvent): void => {
-      if (!active) return;
-      const dx = e.clientX - lastX;
-      lastX = e.clientX;
-      // horizontal drag only: the low-pole tilt was disorienting
-      const qy = new THREE.Quaternion().setFromAxisAngle(UP, dx * 0.0055);
-      dragQ.current.premultiply(qy);
-    };
-    const up = (e: PointerEvent): void => {
-      if (!active) return;
-      active = false;
-      el.style.cursor = "grab";
-      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
-    };
-    const wheel = (e: WheelEvent): void => {
-      e.preventDefault();
-      const k = Math.exp(e.deltaY * 0.0012);
-      zoom.current.target = Math.min(
-        Math.max(zoom.current.target * k, MARS_RADIUS * 0.35),
-        MARS_RADIUS * 2.8,
-      );
-    };
-    el.addEventListener("pointerdown", down);
-    el.addEventListener("wheel", wheel, { passive: false });
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    return () => {
-      el.removeEventListener("pointerdown", down);
-      el.removeEventListener("wheel", wheel);
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      el.style.cursor = "";
-    };
-  }, [phase, gl]);
-
   // ---- camera: orbit pose -------------------------------------------------
   useEffect(() => {
     if (phase !== "orbit") return;
-    camera.position.set(MARS_ORBIT_POS[0], MARS_ORBIT_POS[1], MARS_ORBIT_POS[2]);
+    camera.position.set(
+      Math.sin(ORBIT_POLAR) * Math.sin(ORBIT_AZIMUTH) * MARS_ORBIT_DIST,
+      MARS_CENTRE.y + Math.cos(ORBIT_POLAR) * MARS_ORBIT_DIST,
+      Math.sin(ORBIT_POLAR) * Math.cos(ORBIT_AZIMUTH) * MARS_ORBIT_DIST,
+    );
     camera.up.set(0, 1, 0);
-    camera.lookAt(0, 0, 0);
+    camera.lookAt(MARS_CENTRE);
     setClip(camera, MARS_ORBIT_DIST);
     opacity.current = 1;
     dive.current = null;
     stageRef.current = -1;
-    dragQ.current.identity();
-    const d0 = camera.position.length();
-    zoom.current.current = d0;
-    zoom.current.target = d0;
   }, [phase, camera]);
 
   // ---- camera: dive to the loaded region ---------------------------------
@@ -243,34 +188,26 @@ export function MarsScene({
 
   useFrame((_, delta) => {
     if (phase === "orbit") {
-      const z = zoom.current;
-      z.current += (z.target - z.current) * (1 - Math.exp(-delta * 9));
-      const dir = camera.position.clone().normalize();
-      camera.position.copy(dir.multiplyScalar(z.current));
-      camera.lookAt(0, 0, 0);
-      setClip(camera, z.current);
+      setClip(camera, camera.position.distanceTo(MARS_CENTRE));
     }
     const d = dive.current;
     if (phase === "dive" && d !== null && !d.done) {
       d.elapsed = Math.min(DIVE_SECONDS, d.elapsed + delta);
       const k = stagedProgress(d.elapsed);
 
-      // recentre the dragged globe during the first push, so the camera is
-      // always descending onto the pin the viewer clicked
-      dragQ.current.slerp(IDENTITY, 1 - Math.exp(-delta * 7));
-
       const dist = Math.exp(Math.log(d.dist0) + (Math.log(d.dist1) - Math.log(d.dist0)) * k);
-      const target = d.fromT.clone().lerp(d.toT, smoothstep(0.6, 1, k));
-      // top-down at the start, oblique by the end: the whole descent tilts
-      const tilt = smoothstep(0.1, 0.98, k);
+      // the path is anchored on the surface point, so the camera never enters
+      // the globe; the look target swings from the globe centre (the orbit
+      // view) to the terrain over the first 30% of the dive
+      const look = MARS_CENTRE.clone().lerp(d.toT, smoothstep(0, 0.3, k));
       const dir = d.from
         .clone()
         .sub(d.fromT)
         .normalize()
-        .lerp(d.to.clone().sub(d.toT).normalize(), tilt)
+        .lerp(d.to.clone().sub(d.fromT).normalize(), smoothstep(0.1, 0.98, k))
         .normalize();
-      camera.position.copy(target).addScaledVector(dir, dist);
-      camera.lookAt(target);
+      camera.position.copy(d.fromT).addScaledVector(dir, dist);
+      camera.lookAt(look);
       setClip(camera, dist);
       // the globe gives way to the raw data grid before the texture blurs
       opacity.current = smoothstep(Math.log(30000), Math.log(70000), Math.log(dist));
@@ -285,8 +222,6 @@ export function MarsScene({
         onDiveDone();
       }
     }
-
-    if (center.current !== null) center.current.quaternion.copy(dragQ.current);
 
     const mat = globeMat.current;
     if (mat !== null) {
@@ -315,6 +250,20 @@ export function MarsScene({
     <>
       <SpaceBackdrop />
       <RegionalPlane />
+      {phase === "orbit" && (
+        <OrbitControls
+          target={[0, -MARS_RADIUS, 0]}
+          enablePan={false}
+          enableDamping
+          dampingFactor={0.08}
+          rotateSpeed={0.6}
+          zoomSpeed={0.9}
+          minDistance={MARS_RADIUS * 1.35}
+          maxDistance={MARS_RADIUS * 4.2}
+          minPolarAngle={0.1}
+          maxPolarAngle={1.28}
+        />
+      )}
       <group ref={center} position={[0, -MARS_RADIUS, 0]} name="mars-globe">
         <group ref={globeGroup} quaternion={spin}>
           <mesh ref={globeMesh}>
@@ -393,7 +342,7 @@ export function MarsScene({
 /** Console hint shared by the Mars HUD. */
 export function marsHint(lang: Lang, available: number, total: number): string {
   if (lang === "zh") {
-    return `左右拖动旋转 · 滚轮缩放 · 选择任务地点（${available}/${total} 个有地形数据）`;
+    return `拖动旋转 · 滚轮缩放 · 选择任务地点（${available}/${total} 个有地形数据）`;
   }
-  return `Drag left/right · scroll to zoom · pick a mission area (${available} of ${total} with terrain)`;
+  return `Drag to orbit · scroll to zoom · pick a mission area (${available} of ${total} with terrain)`;
 }
