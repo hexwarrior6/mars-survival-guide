@@ -4,7 +4,7 @@
  * transitions. Display layer only — geometry comes from the frozen package
  * through src/domain/world.ts. */
 
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { advance, Canvas, useFrame, useThree } from "@react-three/fiber";
 
@@ -75,6 +75,7 @@ import { MissionLayer } from "./MissionLayer.js";
 import { BlockSides } from "./BlockSides.js";
 import { LabelLayout, type LabelAnchor } from "./LabelLayout.js";
 import { getTerrainLook } from "./terrainLook.js";
+import { createFieldTexture, FIELD_MAX_MINUTES, updateFieldTexture } from "./fieldMask.js";
 import { Dust, PostFXGate, Sky, SUN_DIR } from "./SceneDressing.js";
 import type { Lang } from "./i18n.js";
 
@@ -84,7 +85,22 @@ const EASE = (x: number): number => x * x * (3 - 2 * x);
 /** Terrain plate. Uses the baked display surface when the loader produced one
  * (colour + long shadows + micro-relief normals) and falls back to the raw
  * ortho, so a failed bake costs beauty, never the sandbox. */
-function TerrainMesh({ pkg, t }: { pkg: LoadedPackage; t: WorldTransform }): JSX.Element {
+function TerrainMesh({
+  pkg,
+  t,
+  fieldMask,
+  fieldOn,
+  fieldThreshold,
+}: {
+  pkg: LoadedPackage;
+  t: WorldTransform;
+  /** returnable-range mask sampled by the surface shader (no overlay geometry) */
+  fieldMask: THREE.Texture;
+  /** 1 = draw the range tint, 0 = off */
+  fieldOn: { value: number };
+  /** reachable walk-minutes available right now, in field units */
+  fieldThreshold: { value: number };
+}): JSX.Element {
   const terrain = pkg.terrain;
   const ortho = useTexture("/data/jezero/imagery/ortho_5m.jpg");
   ortho.anisotropy = 8;
@@ -127,13 +143,49 @@ function TerrainMesh({ pkg, t }: { pkg: LoadedPackage; t: WorldTransform }): JSX
   }, [terrain, t]);
 
   const material = useMemo(() => {
+    /** shared display injection: returnable-range tint + (baked path only) grain */
+    const inject = (shader: THREE.WebGLProgramParametersWithUniforms, withGrain: boolean): void => {
+      shader.uniforms.uFieldMask = { value: fieldMask };
+      shader.uniforms.uFieldOn = fieldOn;
+      shader.uniforms.uFieldThreshold = fieldThreshold;
+      shader.uniforms.uFieldMax = { value: FIELD_MAX_MINUTES };
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          `#include <common>
+          uniform sampler2D uFieldMask;
+          uniform float uFieldOn;
+          uniform float uFieldThreshold;
+          uniform float uFieldMax;
+          const vec3 FIELD_COLOR = vec3(1.0, 0.62, 0.25);`,
+        )
+        .replace(
+          "#include <map_fragment>",
+          `#include <map_fragment>
+          if (uFieldOn > 0.5) {
+            // walk-minutes at this fragment, read from the smoothed field atlas:
+            // the tint and the contour both come from this one fetch, so nothing
+            // is drawn as geometry that could z-fight with the terrain
+            float minutes = texture2D(uFieldMask, vMapUv).r * uFieldMax;
+            float d = uFieldThreshold - minutes;
+            float inside = smoothstep(0.0, 24.0, d);
+            float contour = 1.0 - smoothstep(0.0, 12.0, abs(d));
+            diffuseColor.rgb = mix(diffuseColor.rgb, FIELD_COLOR, inside * 0.11);
+            diffuseColor.rgb = mix(diffuseColor.rgb, FIELD_COLOR * 1.2, contour * 0.45);
+          }${withGrain ? "" : ""}`,
+        );
+    };
+
     if (look === null) {
-      return new THREE.MeshStandardMaterial({
+      const plain = new THREE.MeshStandardMaterial({
         map: ortho,
         color: new THREE.Color("#e2a877"),
         roughness: 0.93,
         metalness: 0,
       });
+      plain.onBeforeCompile = (shader) => inject(shader, false);
+      plain.customProgramCacheKey = () => "sandbox-terrain-plain-field";
+      return plain;
     }
     const material = new THREE.MeshStandardMaterial({
       map: look.albedo,
@@ -154,6 +206,7 @@ function TerrainMesh({ pkg, t }: { pkg: LoadedPackage; t: WorldTransform }): JSX
           "#include <begin_vertex>",
           "#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;",
         );
+      inject(shader, true);
       shader.fragmentShader = shader.fragmentShader
         .replace(
           "#include <common>",
@@ -178,7 +231,7 @@ function TerrainMesh({ pkg, t }: { pkg: LoadedPackage; t: WorldTransform }): JSX
         );
     };
     return material;
-  }, [look, ortho]);
+  }, [look, ortho, fieldMask, fieldOn, fieldThreshold]);
 
   useEffect(() => () => material.dispose(), [material]);
 
@@ -623,104 +676,6 @@ export function makeFpsStore(): FpsStore {
  * recomputed only when the closure state changes, and the boundary/fill are
  * re-derived whenever the resource threshold moves.
  */
-function ReturnableLayer({
-  field,
-  threshold,
-  terrain,
-  t,
-}: {
-  field: CostField;
-  threshold: number;
-  terrain: TerrainGrid;
-  t: WorldTransform;
-}): JSX.Element | null {
-  const n = terrain.width * terrain.height;
-  const cs = terrain.cellSizeM;
-  // per-cell world height (centre sample), computed once per mapping
-  const heights = useMemo(() => {
-    const h = new Float32Array(n);
-    for (let r = 0; r < terrain.height; r++) {
-      for (let c = 0; c < terrain.width; c++) {
-        const xM = (c + 0.5) * cs;
-        const yM = terrain.originYM - (r + 0.5) * cs;
-        h[r * terrain.width + c] = worldY(t, sampleElevationM(terrain, xM, yM, t.datumM));
-      }
-    }
-    return h;
-  }, [terrain, t, n, cs]);
-
-  const lineRef = useRef<THREE.LineSegments | null>(null);
-  const fillRef = useRef<THREE.InstancedMesh | null>(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-
-  // useLayoutEffect: fix the instance count before first paint (an InstancedMesh
-  // starts with count = capacity, which would paint all 65k identity quads once)
-  useLayoutEffect(() => {
-    // boundary segments: every in-range cell with an out-of-range (or blocked)
-    // orthogonal neighbour contributes one centre-to-centre segment
-    const segs: number[] = [];
-    let count = 0;
-    for (let r = 0; r < terrain.height; r++) {
-      for (let c = 0; c < terrain.width; c++) {
-        const i = r * terrain.width + c;
-        const m = field.minutes[i] as number;
-        if (m > threshold) continue;
-        count++;
-        const hHere = heights[i] as number + 0.8;
-        const [xHere, zHere] = worldXZ(t, (c + 0.5) * cs, terrain.originYM - (r + 0.5) * cs);
-        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
-          const r2 = r + dr;
-          const c2 = c + dc;
-          let out = true;
-          if (r2 >= 0 && r2 < terrain.height && c2 >= 0 && c2 < terrain.width) {
-            out = (field.minutes[r2 * terrain.width + c2] as number) > threshold;
-          }
-          if (!out) continue;
-          const i2 = r2 * terrain.width + c2;
-          const hThere = r2 >= 0 && r2 < terrain.height && c2 >= 0 && c2 < terrain.width
-            ? (heights[i2] as number) + 0.8
-            : hHere;
-          const [xThere, zThere] = r2 >= 0 && r2 < terrain.height && c2 >= 0 && c2 < terrain.width
-            ? worldXZ(t, (c2 + 0.5) * cs, terrain.originYM - (r2 + 0.5) * cs)
-            : [xHere + dc * cs, zHere + dr * cs];
-          segs.push(xHere, hHere, zHere, xThere, hThere, zThere);
-        }
-        // fill quad transform for this in-range cell
-        if (fillRef.current !== null && count <= n) {
-          dummy.position.set(xHere, hHere, zHere);
-          dummy.rotation.set(-Math.PI / 2, 0, 0);
-          dummy.updateMatrix();
-          fillRef.current.setMatrixAt(count - 1, dummy.matrix);
-        }
-      }
-    }
-    if (fillRef.current !== null) {
-      fillRef.current.count = count;
-      fillRef.current.instanceMatrix.needsUpdate = true;
-    }
-    if (lineRef.current !== null) {
-      const geom = new THREE.BufferGeometry();
-      geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(segs), 3));
-      const old = lineRef.current.geometry;
-      lineRef.current.geometry = geom;
-      old.dispose();
-    }
-  }, [field, threshold, heights, terrain, t, n, cs, dummy]);
-
-  if (threshold === Number.POSITIVE_INFINITY) return null;
-  return (
-    <group name="returnable-layer">
-      <instancedMesh ref={fillRef} args={[undefined, undefined, n]} frustumCulled={false}>
-        <planeGeometry args={[cs, cs]} />
-        <meshBasicMaterial color="#ffb45e" transparent opacity={0.13} depthWrite={false} side={THREE.DoubleSide} />
-      </instancedMesh>
-      <lineSegments ref={lineRef} frustumCulled={false}>
-        <lineBasicMaterial color="#ffb45e" transparent opacity={0.85} />
-      </lineSegments>
-    </group>
-  );
-}
-
 export type LoopMode = "raf" | "timer";
 
 export function Sandbox({
@@ -755,7 +710,29 @@ export function Sandbox({
   lockedRoute: { out: { x: number; y: number; z: number }[]; ret: { x: number; y: number; z: number }[] } | null;
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
+  // returnable-range mask lives in a texture: the tint follows the terrain
+  const fieldMask = useMemo(() => createFieldTexture(pkg.terrain), [pkg]);
+  const fieldOn = useMemo(() => ({ value: 0 }), []);
+  const fieldThreshold = useMemo(() => ({ value: 0 }), []);
+  const lastField = useRef<CostField | null>(null);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  useEffect(() => {
+    if (returnable === null) {
+      fieldOn.value = 0;
+      lastField.current = null;
+      return;
+    }
+    // the field only changes when the closure does; the threshold is a uniform,
+    // so scrubbing updates one float instead of rebuilding 65k cells
+    if (lastField.current !== returnable.field) {
+      lastField.current = returnable.field;
+      updateFieldTexture(fieldMask, pkg.terrain, returnable.field);
+    }
+    fieldThreshold.value = returnable.threshold;
+    // dev switch: ?nofield isolates the terrain from the range tint
+    fieldOn.value = new URLSearchParams(location.search).has("nofield") ? 0 : 1;
+  }, [returnable, fieldMask, fieldOn, fieldThreshold, pkg]);
+
   // planned route in world space, used to keep the HTML labels off the plan
   const labelObstacles = useMemo(() => {
     if (result === null) return [];
@@ -807,7 +784,13 @@ export function Sandbox({
       {/* warm display-only fill from the opposite quarter to lift the cut faces */}
       <directionalLight position={[5200, 1500, 5600]} intensity={0.85} color="#ff9d63" />
       <Suspense fallback={null}>
-        <TerrainMesh pkg={pkg} t={t} />
+        <TerrainMesh
+          pkg={pkg}
+          t={t}
+          fieldMask={fieldMask}
+          fieldOn={fieldOn}
+          fieldThreshold={fieldThreshold}
+        />
       </Suspense>
       {/* display-only cut-away block: side faces + base slab + lit rim.
           Strata pattern is artistic; geometry anchors are the real DEM edge. */}
@@ -842,14 +825,6 @@ export function Sandbox({
         t={t}
         closureActive={closureActive}
       />
-      {returnable !== null && (
-        <ReturnableLayer
-          field={returnable.field}
-          threshold={returnable.threshold}
-          terrain={pkg.terrain}
-          t={t}
-        />
-      )}
       <OrbitControls
         ref={controlsRef}
         makeDefault
