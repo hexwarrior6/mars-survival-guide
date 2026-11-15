@@ -94,6 +94,7 @@ function TerrainMesh({
   fieldMask,
   fieldOn,
   fieldThreshold,
+  scanReveal,
 }: {
   pkg: LoadedPackage;
   t: WorldTransform;
@@ -103,6 +104,8 @@ function TerrainMesh({
   fieldOn: { value: number };
   /** reachable walk-minutes available right now, in field units */
   fieldThreshold: { value: number };
+  /** 0 = raw data grid, 1 = full display surface (landing scan) */
+  scanReveal: { value: number };
 }): JSX.Element {
   const terrain = pkg.terrain;
   const ortho = useTexture("/data/jezero/imagery/ortho_5m.jpg");
@@ -209,12 +212,16 @@ function TerrainMesh({
           "#include <begin_vertex>",
           "#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;",
         );
+      shader.uniforms.uScanReveal = scanReveal;
+      shader.uniforms.uScanHalf = { value: (terrain.height * terrain.cellSizeM) / 2 + 160 };
       inject(shader, true);
       shader.fragmentShader = shader.fragmentShader
         .replace(
           "#include <common>",
           `#include <common>
           varying vec3 vWPos;
+          uniform float uScanReveal;
+          uniform float uScanHalf;
           float h21(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
           float n2(vec2 p){
             vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -230,11 +237,30 @@ function TerrainMesh({
           float dB = grain(vWPos.xz * 1.7 + 19.0);
           float detail = mix(dA, dB, 0.5);
           diffuseColor.rgb *= 0.93 + 0.14 * detail;
-          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.03, 0.99, 0.95), detail * 0.35);`,
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.03, 0.99, 0.95), detail * 0.35);
+          if (uScanReveal < 0.999) {
+            // landing scan: ahead of the front the surface is a raw data grid,
+            // behind it the display surface; the front itself glows amber
+            float front = mix(-uScanHalf, uScanHalf, uScanReveal);
+            float revealed = 1.0 - smoothstep(front - 70.0, front + 70.0, vWPos.z);
+            float gx = abs(fract(vWPos.x / 220.0) - 0.5);
+            float gz = abs(fract(vWPos.z / 220.0) - 0.5);
+            float gridLine = 1.0 - smoothstep(0.0, 0.035, min(gx, gz));
+            float grey = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+            vec3 dataCol = vec3(grey) * 0.32 + vec3(0.012, 0.024, 0.040);
+            dataCol += vec3(0.20, 0.32, 0.44) * gridLine * 0.55;
+            diffuseColor.rgb = mix(dataCol, diffuseColor.rgb, revealed);
+            float edge = 1.0 - smoothstep(0.0, 150.0, abs(vWPos.z - front));
+            float core = 1.0 - smoothstep(0.0, 28.0, abs(vWPos.z - front));
+            float halo = 1.0 - smoothstep(0.0, 520.0, abs(vWPos.z - front));
+            diffuseColor.rgb += vec3(1.0, 0.55, 0.22) * edge * 1.8;
+            diffuseColor.rgb += vec3(1.0, 0.86, 0.66) * core * 2.6;
+            diffuseColor.rgb += vec3(1.0, 0.5, 0.2) * halo * 0.12;
+          }`,
         );
     };
     return material;
-  }, [look, ortho, fieldMask, fieldOn, fieldThreshold]);
+  }, [look, ortho, fieldMask, fieldOn, fieldThreshold, scanReveal, terrain]);
 
   useEffect(() => () => material.dispose(), [material]);
 
@@ -765,6 +791,7 @@ export function Sandbox({
   helmet,
   lockedRoute,
   marsPhase,
+  scanReveal,
   missions,
   activeMissionId,
   introStartedOff,
@@ -791,6 +818,8 @@ export function Sandbox({
   lockedRoute: { out: { x: number; y: number; z: number }[]; ret: { x: number; y: number; z: number }[] } | null;
   /** opening Mars stage state */
   marsPhase: MarsPhase;
+  /** landing scan: 0 raw grid -> 1 display surface */
+  scanReveal: { value: number };
   missions: MissionLocation[];
   activeMissionId: string;
   /** whether the normal opening camera move should run once */
@@ -882,6 +911,7 @@ export function Sandbox({
           fieldMask={fieldMask}
           fieldOn={fieldOn}
           fieldThreshold={fieldThreshold}
+          scanReveal={scanReveal}
         />
       </Suspense>
       {/* display-only cut-away block: side faces + base slab + lit rim.

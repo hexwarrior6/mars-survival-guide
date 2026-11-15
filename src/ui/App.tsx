@@ -63,6 +63,9 @@ export function App(): JSX.Element {
   const [missions, setMissions] = useState<MissionLocation[] | null>(null);
   const [missionId, setMissionId] = useState("jezero");
   const [marsNotice, setMarsNotice] = useState<string | null>(null);
+  /** landing scan: 0 = raw data grid, 1 = full display surface */
+  const scanReveal = useRef({ value: startOnMars ? 0 : 1 });
+  const scanRaf = useRef(0);
   const [webglFailed, setWebglFailed] = useState(false);
   const [loopMode, setLoopMode] = useState<LoopMode>("raf");
   const [helmet, setHelmet] = useState(false);
@@ -110,6 +113,28 @@ export function App(): JSX.Element {
     totalMinutes: 0,
   });
   const speedRef = useRef(8);
+
+  const stopScan = (): void => {
+    if (scanRaf.current !== 0) cancelAnimationFrame(scanRaf.current);
+    scanRaf.current = 0;
+  };
+  const runScan = (): void => {
+    stopScan();
+    if (reducedMotion) {
+      scanReveal.current.value = 1;
+      return;
+    }
+    scanReveal.current.value = 0;
+    const t0 = performance.now();
+    const tick = (): void => {
+      const k = Math.min(1, (performance.now() - t0) / 2000);
+      const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      scanReveal.current.value = e;
+      scanRaf.current = k < 1 ? requestAnimationFrame(tick) : 0;
+    };
+    scanRaf.current = requestAnimationFrame(tick);
+  };
+  useEffect(() => () => stopScan(), []);
 
   // mission locations first: the manifest decides which package to load
   useEffect(() => {
@@ -649,6 +674,7 @@ export function App(): JSX.Element {
                   helmet={helmet}
                   lockedRoute={lockedPolylines}
                   marsPhase={marsPhase}
+                  scanReveal={scanReveal.current}
                   missions={missions ?? FALLBACK_MISSIONS}
                   activeMissionId={activeMission.id}
                   introStartedOff={!startOnMars}
@@ -657,6 +683,7 @@ export function App(): JSX.Element {
                   onMarsDone={() => {
                     setMarsPhase("off");
                     setSelectedSiteId(null);
+                    runScan();
                   }}
                 />
               </div>
@@ -740,6 +767,8 @@ export function App(): JSX.Element {
               setSelectedSiteId(null);
               setHelmet(false);
               setMarsNotice(null);
+              stopScan();
+              scanReveal.current.value = 0;
               setMarsPhase("orbit");
             }}
           >
@@ -922,6 +951,8 @@ export function App(): JSX.Element {
                 type="button"
                 className="small"
                 onClick={() => {
+                  stopScan();
+                  scanReveal.current.value = 1;
                   commandCamera(overviewPose(worldTransform(pkg.terrain), 400), true);
                   setMarsPhase("off");
                 }}
