@@ -797,6 +797,7 @@ export function Sandbox({
   introStartedOff,
   onMarsPick,
   onMarsUnavailable,
+  onMarsStage,
   onMarsDone,
 }: {
   pkg: LoadedPackage;
@@ -826,6 +827,7 @@ export function Sandbox({
   introStartedOff: boolean;
   onMarsPick: (id: string) => void;
   onMarsUnavailable: (id: string) => void;
+  onMarsStage: (stage: number) => void;
   onMarsDone: () => void;
 }): JSX.Element {
   const t = useMemo(() => worldTransform(pkg.terrain), [pkg]);
@@ -977,6 +979,7 @@ export function Sandbox({
             phase={marsPhase}
             onPick={onMarsPick}
             onUnavailable={onMarsUnavailable}
+            onStage={onMarsStage}
             onDiveDone={onMarsDone}
           />
         </Suspense>

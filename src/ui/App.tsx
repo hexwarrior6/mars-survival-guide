@@ -14,7 +14,7 @@ import { PARAMS_VERSION } from "../domain/assumptions.js";
 import type { LoadedPackage } from "../domain/load.js";
 import type { RouteRequest, RouteResult, Strategy } from "../domain/types.js";
 import { Sandbox, flyToSite, makeFpsStore, type FpsStore, type LoopMode } from "./Sandbox.js";
-import { marsHint, type MarsPhase } from "./MarsScene.js";
+import { DIVE_STAGES, marsHint, type MarsPhase } from "./MarsScene.js";
 import { FALLBACK_MISSIONS, type MissionLocation } from "../domain/missions.js";
 import { PlanView2D } from "./PlanView2D.js";
 import { WebglErrorBoundary } from "./WebglErrorBoundary.js";
@@ -63,6 +63,7 @@ export function App(): JSX.Element {
   const [missions, setMissions] = useState<MissionLocation[] | null>(null);
   const [missionId, setMissionId] = useState("jezero");
   const [marsNotice, setMarsNotice] = useState<string | null>(null);
+  const [marsStage, setMarsStage] = useState(1);
   /** landing scan: 0 = raw data grid, 1 = full display surface */
   const scanReveal = useRef({ value: startOnMars ? 0 : 1 });
   const scanRaf = useRef(0);
@@ -517,6 +518,7 @@ export function App(): JSX.Element {
       return;
     }
     setMarsNotice(null);
+    setMarsStage(1);
     setMarsPhase("dive");
   };
   const show3d = view === "3d" && !webglFailed;
@@ -680,6 +682,7 @@ export function App(): JSX.Element {
                   introStartedOff={!startOnMars}
                   onMarsPick={pickMission}
                   onMarsUnavailable={pickMission}
+                  onMarsStage={setMarsStage}
                   onMarsDone={() => {
                     setMarsPhase("off");
                     setSelectedSiteId(null);
@@ -767,6 +770,7 @@ export function App(): JSX.Element {
               setSelectedSiteId(null);
               setHelmet(false);
               setMarsNotice(null);
+              setMarsStage(1);
               stopScan();
               scanReveal.current.value = 0;
               setMarsPhase("orbit");
@@ -938,6 +942,24 @@ export function App(): JSX.Element {
                 {lang === "zh" ? "接近 · 耶泽罗任务区" : "APPROACH · JEZERO MISSION AREA"}
               </span>
             </div>
+            {marsPhase === "dive" && (
+              <div className="mars-loading">
+                <div className="row">
+                  <span>RESOLVING SURFACE</span>
+                  <b>
+                    {Math.min(DIVE_STAGES, Math.max(1, marsStage))} / {DIVE_STAGES}
+                  </b>
+                </div>
+                <div className="bar">
+                  <i
+                    style={{
+                      width: `${(Math.min(DIVE_STAGES, Math.max(1, marsStage)) / DIVE_STAGES) * 100}%`,
+                    }}
+                  />
+                </div>
+                <em>APPROACH · STAGED ZOOM</em>
+              </div>
+            )}
             {marsNotice !== null && <div className="mars-notice">{marsNotice}</div>}
             <div className="mars-hint">
               <span>

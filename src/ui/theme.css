@@ -903,3 +903,53 @@ table.results-table { width: 100%; border-collapse: collapse; font-size: 11.5px;
   pointer-events: none;
   transition: opacity 300ms ease;
 }
+
+.mars-loading {
+  position: absolute;
+  left: 50%;
+  bottom: 100px;
+  transform: translateX(-50%);
+  width: 244px;
+  padding: 9px 12px 10px;
+  background: rgba(16, 11, 8, 0.82);
+  border: 1px solid rgba(255, 180, 94, 0.35);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.mars-loading .row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.mars-loading .row b {
+  color: var(--accent);
+  font-weight: 600;
+}
+.mars-loading .bar {
+  margin-top: 7px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.mars-loading .bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ffb45e, #ffe1bb);
+  box-shadow: 0 0 10px rgba(255, 180, 94, 0.65);
+  transition: width 280ms ease;
+}
+.mars-loading em {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  color: rgba(162, 145, 127, 0.7);
+}
