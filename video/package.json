@@ -1,0 +1,31 @@
+{
+  "name": "mars-survival-guide-film",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.tsx",
+    "render": "remotion render src/index.tsx MarsSurvivalGuide deliverables/mars-survival-guide-31s-unified-score.mp4 --gl=angle --concurrency=2 --crf=18 && node scripts/finalize.mjs",
+    "typecheck": "tsc --noEmit",
+    "assets": "tsx scripts/prepare.ts",
+    "score": "node scripts/score.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "@remotion/three": "4.0.539",
+    "@remotion/media": "4.0.539",
+    "remotion": "4.0.539",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "three": "0.187.0",
+    "@react-three/fiber": "9.8.2",
+    "@react-three/drei": "10.7.9"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.187.0",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

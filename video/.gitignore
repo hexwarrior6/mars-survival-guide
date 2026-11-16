@@ -1,0 +1,14 @@
+node_modules/
+deliverables/
+.DS_Store
+public/mission.json
+public/mars.jpg
+public/ortho.jpg
+public/console.png
+public/score.wav
+public/opening.json
+public/region.jpg
+public/mars-hires.jpg
+public/mars-normal.png
+public/score35.wav
+public/score31.wav
