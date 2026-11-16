@@ -25,19 +25,31 @@ This application is an **exploratory planning prototype and educational console*
 
 The screenshots below are captured directly from the running application:
 
-### 1. 3D Sandbox Mission Planning
+### 1. Planetary Approach & Mission-Area Selection
+![Planetary Approach & Mission-Area Selection](docs/visuals/animation-planetary-approach.gif)
+*Live recording of the intro sequence: the console opens in space, on a Viking MDIM 2.1 colorized global Mars sphere. Drag to rotate, scroll to zoom, and pick one of four documented mission areas (Jezero carries the full terrain package) — the camera then dives continuously from orbit through the 60 km regional context down into the local 3D sandbox.*
+
+### 2. 3D Sandbox Mission Planning
 ![3D Sandbox Mission Planning](docs/visuals/screenshot-overview-3d.png)
 *Full-viewport 3D terrain stage driven by real MRO CTX DEM elevation and ortho imagery, modeled northwest lighting, landform-anchored science destinations (SITE-A/B/C), true 1.7 m scale reference figure, and terrain-hugging outbound/return routes with instantaneous budget evaluation.*
 
-### 2. Deterministic Timeline & Emergency Replanning
+### 3. Low-Angle Terrain Climb (Real DEM Relief)
+![Low-Angle Terrain Climb](docs/visuals/screenshot-hero-climb.png)
+*The same sandbox seen from ground level: the terrain-aware A\* route hugs the contours of the western delta hillside on its climb to SITE-C (small fresh crater), with the astronaut marker mid-route at T+67 of a 208-minute simulated round trip. Vertical relief is exaggerated ×4.5 for readability, but every twist of the ribbon is a real A\* decision on the 20 m DEM grid.*
+
+### 4. Deterministic Timeline & Emergency Replanning
 ![Deterministic Timeline & Emergency Replanning](docs/visuals/screenshot-timeline-return.png)
 *Minute-by-minute deterministic replay along the mission timeline. When a simulated traversal incident strikes (e.g. passage closure at T+130 min), the invalidated segment is dashed in gray, a safe detour route is computed in real time, and the amber returnable-range boundary contracts dynamically.*
 
-### 3. Plan A/B Multi-Strategy Comparison
+### 5. Plan A/B Multi-Strategy Comparison
 ![Plan A/B Comparison](docs/visuals/screenshot-plan-compare.png)
 *Lock Plan A to evaluate side-by-side trade-offs against Plan B under altered inputs (e.g. Shortest vs. Terrain-aware routing, variable science-stop durations). Dual route ribbons display simultaneously alongside a delta comparison table.*
 
-### 4. 2D Orthophoto Cross-Check & WebGL Fallback
+### 6. First-Person Helmet Cam
+![First-Person Helmet Cam](docs/visuals/screenshot-helmet-cam.png)
+*The return leg (T+161) from the simulated astronaut's 1.7 m eye height, with an active telemetry HUD — remaining O₂/power budget, heading, mission leg and phase — rendered over the same real CTX terrain. Near-field detail is labeled as artistic treatment.*
+
+### 7. 2D Orthophoto Cross-Check & WebGL Fallback
 ![2D Orthophoto Cross-Check](docs/visuals/screenshot-2d-check.png)
 *True top-down orthographic map utilizing the ungraded CTX imagery resampled to 20 m/px from the approximately 5 m/px source mosaic, providing an independent spatial verification view with scale bar and north arrow, as well as a fallback when WebGL is unavailable.*
 
