@@ -6,9 +6,9 @@
 
 **[在线体验控制台](https://mars-survival-guide-green.vercel.app/)** · **[GitHub 仓库](https://github.com/hexwarrior6/mars-survival-guide)** · **[提交说明与数据引用](docs/SUBMISSION.md)** · **[3分钟演示流程](docs/DEMO.md)**
 
-[![观看演示视频](docs/visuals/video-thumbnail.jpg)](https://youtu.be/ky0IvXPYx0g)
+[![观看演示视频](docs/visuals/video-thumbnail.jpg)](https://youtu.be/X_57K_bLPIA)
 
-*点击上方图片在 [YouTube](https://youtu.be/ky0IvXPYx0g) 观看最新演示视频。*
+*点击上方图片在 [YouTube](https://youtu.be/X_57K_bLPIA) 观看最新演示视频。*
 
 ---
 
@@ -217,7 +217,7 @@ src/
   - 本项目于 2026-11-15 23:49（新加坡时间）通过 NASA Space Apps 比赛平台正式确认提交评审（网站显示“Project Submitted for Judging”，并在超链接更新后于 23:52 完成最后确认提交）。
   - 历史提交的演示视频时长约为 35 秒（[查看历史提交视频](https://youtu.be/41C24oOkQJE)）。
 - **仓库展示视频**：
-  - 截至 2026-11-16，本仓库展示已更新为最新制作的演示视频（[查看最新演示视频](https://youtu.be/ky0IvXPYx0g)）。本展示更新与当晚的历史正式提交记录明确区分，不将新视频表述为已获比赛官方接收，亦不对评审资格进行臆测。
+  - 截至 2026-11-17，本仓库展示已更新为最新制作的演示视频（[查看最新演示视频](https://youtu.be/X_57K_bLPIA)）。本展示更新与当晚的历史正式提交记录明确区分，不将新视频表述为已获比赛官方接收，亦不对评审资格进行臆测。
 - **AI 工具使用披露**：
   - 开发流程中使用了 AI 编程助手（Codex、Antigravity）协助进行技术调研、方案起草、代码编写、自动化测试构建与文档整理。
   - 本产品**不包含任何运行时大语言模型（LLM）**；所有路线搜索、预算判据与模拟回放均为纯 TypeScript 编写的确定性算法。完整披露详见 [docs/SUBMISSION.md](docs/SUBMISSION.md)。

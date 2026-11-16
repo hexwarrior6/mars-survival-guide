@@ -6,9 +6,9 @@ A working Marswalk planning and mission-simulation console built for the **NASA 
 
 **[Try the Live Console](https://mars-survival-guide-green.vercel.app/)** · **[GitHub Repository](https://github.com/hexwarrior6/mars-survival-guide)** · **[Submission Details & References](docs/SUBMISSION.md)** · **[3-Minute Demo Script](docs/DEMO.md)**
 
-[![Watch Demonstration Video](docs/visuals/video-thumbnail.jpg)](https://youtu.be/ky0IvXPYx0g)
+[![Watch Demonstration Video](docs/visuals/video-thumbnail.jpg)](https://youtu.be/X_57K_bLPIA)
 
-*Click the image above to watch the demonstration video on [YouTube](https://youtu.be/ky0IvXPYx0g).*
+*Click the image above to watch the demonstration video on [YouTube](https://youtu.be/X_57K_bLPIA).*
 
 ---
 
@@ -217,7 +217,7 @@ Validation on the current macOS / Node 24 environment includes type checking, a 
   - The project was officially submitted for judging on 2026-11-15 at 23:49 Singapore time (confirmed by the Space Apps portal, with final hyperlink update recorded at 23:52).
   - The historical submitted demonstration video was approximately 35 seconds ([Watch historical video](https://youtu.be/41C24oOkQJE)).
 - **Repository Demonstration**:
-  - As of 2026-11-16, an updated demonstration video ([Watch latest video](https://youtu.be/ky0IvXPYx0g)) is featured for repository visitors. This updated showcase is distinct from the formal judging submission record; no official acceptance or eligibility status is claimed.
+  - As of 2026-11-17, an updated demonstration video ([Watch latest video](https://youtu.be/X_57K_bLPIA)) is featured for repository visitors. This updated showcase is distinct from the formal judging submission record; no official acceptance or eligibility status is claimed.
 - **AI Tool Disclosure**:
   - AI tools (Codex, Antigravity) were employed for research assistance, implementation planning, code scaffolding, automated testing, and documentation formatting.
   - The application contains **no runtime LLM**; all pathfinding, budgeting, and simulation logic are deterministic TypeScript calculations. Full disclosure is available in [docs/SUBMISSION.md](docs/SUBMISSION.md).

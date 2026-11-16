@@ -2,9 +2,9 @@
 
 Live application: https://mars-survival-guide-green.vercel.app/
 
-Demonstration video: https://youtu.be/ky0IvXPYx0g
+Demonstration video: https://youtu.be/X_57K_bLPIA
 
-Submitted for judging: 2026-11-15 23:49 Singapore time (final hyperlink update confirmed at 23:52), confirmed by the competition website. The historical submitted demonstration (https://youtu.be/41C24oOkQJE) is approximately 35.02 seconds and exceeds the stated 30-second limit; this confirmation does not establish Global Award eligibility. The updated demonstration (https://youtu.be/ky0IvXPYx0g) is maintained for repository presentation and is clearly distinguished from the initial competition form submission.
+Submitted for judging: 2026-11-15 23:49 Singapore time (final hyperlink update confirmed at 23:52), confirmed by the competition website. The historical submitted demonstration (https://youtu.be/41C24oOkQJE) is approximately 35.02 seconds and exceeds the stated 30-second limit; this confirmation does not establish Global Award eligibility. The updated demonstration (https://youtu.be/X_57K_bLPIA, repository showcase updated 2026-11-17) is maintained for repository presentation and is clearly distinguished from the initial competition form submission.
 
 ## Project summary
 
